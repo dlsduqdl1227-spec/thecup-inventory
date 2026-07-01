@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>TheCup Inventory</title>
+  <style>
+    @font-face{
+      font-family:Pretendard;
+      src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/woff2/PretendardVariable.woff2') format('woff2');
+      font-weight:45 920;
+      font-style:normal;
+      font-display:swap;
+    }
+    :root{
+      --bg:#f4f5f6;
+      --surface:#ffffff;
+      --surface-2:#f8f9fa;
+      --surface-3:#eef0f2;
+      --text:#151618;
+      --sub:#6f767e;
+      --muted:#9aa1a9;
+      --line:#d9dde2;
+      --line-dark:#2f3338;
+      --dark:#141518;
+      --dark-2:#202226;
+      --danger:#c83b3b;
+      --warn:#b77a16;
+      --ok:#147c55;
+      --shadow:0 14px 34px rgba(15,17,20,.08);
+      --shadow-soft:0 8px 20px rgba(15,17,20,.06);
+      --radius:18px;
+      --radius-sm:12px;
+      --max:1080px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html{width:100%;overflow-x:hidden;background:var(--bg)}
+    body{
+      width:100%;min-height:100dvh;overflow-x:hidden;background:
+        radial-gradient(circle at top left, rgba(20,21,24,.08), transparent 34rem),
+        linear-gradient(180deg,#fbfbfc 0%,var(--bg) 42%,#eceef0 100%);
+      color:var(--text);
+      font-family:Pretendard,-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;
+      font-size:15px;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere;
+    }
+    button,input{font:inherit;min-width:0}
+    button{cursor:pointer;border:0;background:none;color:inherit}
+    input{appearance:none;-webkit-appearance:none;border-radius:0}
+    ::selection{background:var(--dark);color:#fff}
+    .app{width:min(var(--max),100%);margin:0 auto;padding:28px 18px 72px}
+
+    .top{
+      display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:end;
+      padding:24px 0 22px;border-bottom:1px solid var(--line);margin-bottom:18px;
+    }
+    .brand{display:inline-flex;align-items:center;width:max-content;border:1px solid var(--line-dark);border-radius:999px;background:var(--dark);color:#fff;padding:6px 11px;font-size:11px;font-weight:860;letter-spacing:.08em;text-transform:uppercase}
+    h1{margin:10px 0 0;font-size:42px;line-height:1;font-weight:860;letter-spacing:-.055em}
+    .subtitle{margin:8px 0 0;color:var(--sub);font-size:12px;font-weight:730;letter-spacing:.04em;text-transform:uppercase}
+
+    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:16px 0 18px}
+    .toolbar-left,.toolbar-right{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .small-btn,.kg-btn,.preset-add,.danger-btn,.preset button{
+      min-height:40px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.9);color:var(--text);padding:9px 13px;font-size:12px;font-weight:760;box-shadow:var(--shadow-soft);transition:transform .15s ease,background .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease;
+    }
+    .small-btn:hover,.kg-btn:hover,.preset-add:hover,.preset button:hover{transform:translateY(-1px);border-color:#b7bec7;background:#fff;box-shadow:0 12px 24px rgba(15,17,20,.08)}
+    .small-btn:active,.kg-btn:active,.preset-add:active,.preset button:active,.primary:active{transform:translateY(0)}
+    #statusText{display:inline-flex;align-items:center;min-height:32px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--sub);font-size:11px;font-weight:820;letter-spacing:.04em}
+
+    .tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 24px;background:rgba(255,255,255,.65);border:1px solid var(--line);border-radius:999px;padding:6px;box-shadow:var(--shadow-soft);position:sticky;top:10px;z-index:10;backdrop-filter:blur(14px)}
+    .tab{min-height:48px;border-radius:999px;color:var(--sub);font-size:14px;font-weight:860;letter-spacing:-.01em;transition:background .16s,color .16s,box-shadow .16s}
+    .tab.active{background:var(--dark);color:#fff;box-shadow:0 8px 22px rgba(20,21,24,.18)}
+    .panel{display:none}.panel.active{display:block}
+
+    .section{margin-bottom:26px;background:rgba(255,255,255,.55);border:1px solid rgba(217,221,226,.75);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow-soft)}
+    .section-title{display:flex;align-items:center;gap:8px;margin:0 0 14px;font-size:14px;font-weight:870;letter-spacing:-.015em;color:var(--text)}
+    .section-title::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--dark)}
+    .grid{display:grid;gap:11px}
+    .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .field{width:100%;min-height:52px;border:1px solid var(--line);background:#fff;color:var(--text);padding:14px 15px;border-radius:var(--radius-sm);font-size:15.5px;font-weight:650;outline:none;transition:border-color .16s,box-shadow .16s,background .16s}
+    .field::placeholder{color:#a5abb3;font-weight:560}
+    .field:focus{border-color:var(--line-dark);box-shadow:0 0 0 4px rgba(20,21,24,.08);background:#fff}
+    .relative{position:relative}.unit{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);font-weight:840;letter-spacing:.04em}
+    .sub-label{margin:0 0 8px;font-size:12px;font-weight:760;color:var(--sub);letter-spacing:-.01em}
+    .kg-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.kg-btn{width:100%;box-shadow:none;background:#fff}
+    .primary{width:100%;min-height:54px;border-radius:var(--radius-sm);background:var(--dark);color:#fff;padding:15px 16px;font-size:16px;font-weight:840;letter-spacing:-.015em;box-shadow:0 12px 30px rgba(20,21,24,.18);transition:transform .15s,opacity .15s,background .15s}
+    .primary:hover{background:#000}.primary:disabled{opacity:.45;cursor:not-allowed}
+
+    .presets{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}.preset{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#fff;box-shadow:var(--shadow-soft)}.preset button{border:0;box-shadow:none;border-radius:0;background:transparent;min-height:38px}.preset .preset-del{border-left:1px solid var(--line);color:var(--danger);font-weight:900;padding-left:11px;padding-right:12px}.preset-add{border-style:dashed;color:var(--sub);box-shadow:none}
+    .empty{border:1px dashed #c9ced5;background:rgba(255,255,255,.78);color:var(--muted);padding:32px 18px;text-align:center;font-size:13px;font-weight:780;border-radius:var(--radius-sm)}
+
+    .summary{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow)}
+    .summary-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:17px 18px;gap:14px;background:linear-gradient(180deg,#fff,#fafbfc)}
+    .summary-title{margin:0;color:var(--sub);font-size:12px;font-weight:850;letter-spacing:.04em;text-transform:uppercase}.summary-help{margin:4px 0 0;font-size:12px;color:var(--muted);font-weight:620}.summary-total{font-size:34px;line-height:1;font-weight:890;letter-spacing:-.055em;white-space:nowrap}.chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;padding:14px}.chip{display:flex;justify-content:space-between;align-items:center;background:var(--surface-2);border:1px solid #eaedf0;border-radius:12px;padding:10px 12px;gap:10px}.chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:720;color:#30343a}.chip-amount{font-size:13px;font-weight:860;white-space:nowrap;color:var(--text)}
+
+    .card{display:grid;grid-template-columns:minmax(0,1fr) 62px;align-items:stretch;margin-bottom:10px;background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-soft);transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+    .card:hover{transform:translateY(-1px);box-shadow:var(--shadow);border-color:#c6ccd3}.card-main{width:100%;padding:18px;display:flex;justify-content:space-between;align-items:center;gap:14px;min-width:0;text-align:left;background:#fff}.card-main:hover{background:#fcfcfd}.lot{margin:0 0 6px;color:var(--muted);font-size:11px;font-weight:820;letter-spacing:.05em;text-transform:uppercase}.item-name{margin:0;font-size:18px;font-weight:840;letter-spacing:-.035em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}.meta{display:flex;align-items:center;gap:7px;margin-top:8px;flex-wrap:wrap}.tag{display:inline-flex;align-items:center;min-height:23px;background:var(--dark);color:#fff;border-radius:999px;padding:4px 8px;font-size:10.5px;font-weight:820;text-transform:uppercase}.dday{margin:0;font-size:11px;font-weight:830;letter-spacing:.02em}.stock{text-align:right;white-space:nowrap}.stock-num{font-size:32px;line-height:1;font-weight:900;letter-spacing:-.065em}.stock-unit{font-size:11px;color:var(--muted);font-weight:840;margin-left:3px;letter-spacing:.03em}.delete-zone{width:62px;border-left:1px solid var(--line);background:#fff5f5;color:var(--danger);font-size:11px;font-weight:850;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.35;transition:background .15s}.delete-zone:hover{background:#ffe6e6}
+
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(14,15,17,.72);z-index:50;padding:16px;backdrop-filter:blur(10px)}.modal.show{display:flex}.modal-box{background:#fff;border:1px solid var(--line);border-radius:22px;width:min(460px,100%);max-height:86vh;display:flex;flex-direction:column;position:relative;box-shadow:0 28px 80px rgba(0,0,0,.28);overflow:hidden}.modal-body{padding:24px;overflow:auto}.x{position:absolute;top:12px;right:12px;width:38px;height:38px;border-radius:50%;background:var(--surface-3);font-size:22px;font-weight:760;z-index:2}.x:hover{background:#e5e8ec}.modal-kicker{display:inline-flex;align-items:center;min-height:26px;background:var(--dark);color:#fff;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:830;letter-spacing:.04em;text-transform:uppercase}.modal-title{margin:12px 44px 4px 0;font-size:24px;line-height:1.18;font-weight:850;letter-spacing:-.045em}.modal-desc{margin:0 0 16px;color:var(--sub);font-size:13px;font-weight:680}.current{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin:18px 0}.current span:first-child{color:var(--sub);font-weight:760}.current span:last-child{font-size:32px;font-weight:900;letter-spacing:-.055em}.stepper{display:grid;grid-template-columns:58px minmax(0,1fr) 58px;align-items:center;gap:10px;margin:8px 0 18px}.stepper button{width:58px;height:58px;border:1px solid var(--line);border-radius:16px;background:var(--surface-2);font-size:28px;font-weight:830}.stepper input{width:100%;height:58px;border:1px solid var(--line);border-radius:16px;background:#fff;text-align:center;font-size:32px;font-weight:900;outline:none}.log-row{display:flex;align-items:center;gap:10px;padding:14px 0;border-bottom:1px solid #e8ebee}.log-info{flex:1;min-width:0}.log-title{margin:0;font-size:14px;font-weight:830;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.log-amount{font-size:14px;font-weight:880;white-space:nowrap}.danger-btn{border-color:#f0b9b9;color:var(--danger);background:#fff5f5;box-shadow:none;border-radius:10px}.notice{font-size:13px;line-height:1.6;color:#4f5965;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+
+    @media(max-width:720px){
+      .app{padding:18px 12px 54px}.top{display:block;padding:18px 0 16px}h1{font-size:35px}.subtitle{font-size:11px}.toolbar{align-items:stretch;flex-direction:column}.toolbar-left{display:grid;grid-template-columns:1fr 1fr;width:100%}.small-btn{width:100%;min-height:42px}.tabs{top:6px;margin-bottom:16px}.tab{min-height:46px;font-size:13px}.section{padding:14px;border-radius:16px;margin-bottom:18px}.grid-2{grid-template-columns:1fr}.kg-row{grid-template-columns:repeat(2,minmax(0,1fr))}.summary-head{padding:15px}.summary-total{font-size:30px}.chips{grid-template-columns:1fr;padding:12px}.card{grid-template-columns:minmax(0,1fr) 56px;border-radius:16px}.card-main{padding:16px 14px;align-items:flex-start}.item-name{font-size:17px;white-space:normal}.stock-num{font-size:28px}.delete-zone{width:56px;font-size:10px}.modal-body{padding:22px 18px}.modal-title{font-size:22px}.stepper{grid-template-columns:52px minmax(0,1fr) 52px}.stepper button,.stepper input{height:54px;border-radius:14px}.stepper button{width:52px}.field{font-size:16px;min-height:52px}
+    }
+    @media(max-width:380px){h1{font-size:32px}.summary-head{display:block}.summary-total{margin-top:10px}.card-main{display:grid;grid-template-columns:1fr;gap:12px}.stock{text-align:left}.toolbar-left{grid-template-columns:1fr}.tabs{border-radius:18px}.tab{border-radius:14px}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <span class="brand">TheCup</span>
+      <h1>Inventory</h1>
+      <p class="subtitle">Roastery Stock Management</p>
+    </header>
+
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <button class="small-btn" id="refreshBtn">새로고침</button>
+        <button class="small-btn" id="exportBtn">CSV 내보내기</button>
+      </div>
+      <div class="toolbar-right">
+        <span id="statusText" class="sub-label" style="margin:8px 0 0">READY</span>
+      </div>
+    </div>
+
+    <nav class="tabs" aria-label="재고 구분">
+      <button class="tab active" data-tab="GREEN">GREEN BEAN</button>
+      <button class="tab" data-tab="ROASTED">ROASTED BEAN</button>
+    </nav>
+
+    <section class="panel active" id="panelGREEN">
+      <div class="section">
+        <h2 class="section-title">01. GREEN BEAN 입고</h2>
+        <div id="presetsGREEN" class="presets"></div>
+        <div class="grid">
+          <div class="grid grid-2">
+            <input id="nameGREEN" class="field" placeholder="품목명" autocomplete="off" />
+            <input id="processGREEN" class="field" placeholder="프로세스" autocomplete="off" />
+          </div>
+          <div class="grid grid-2">
+            <input id="lotGREEN" class="field" placeholder="YY.MM.DD" inputmode="numeric" />
+            <div class="relative">
+              <input id="amountGREEN" class="field" type="number" step="0.5" min="0" placeholder="0" style="padding-right:48px;text-align:right" />
+              <span class="unit">KG</span>
+            </div>
+          </div>
+          <div>
+            <p class="sub-label">KG 추가</p>
+            <div class="kg-row">
+              <button class="kg-btn" data-add="1" data-tab="GREEN">+1</button>
+              <button class="kg-btn" data-add="5" data-tab="GREEN">+5</button>
+              <button class="kg-btn" data-add="10" data-tab="GREEN">+10</button>
+              <button class="kg-btn" data-reset="1" data-tab="GREEN" style="color:#94a3b8">초기화</button>
+            </div>
+          </div>
+          <button class="primary" data-submit="GREEN">입고 데이터 기록</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">02. GREEN BEAN 재고 현황</h2>
+        <p class="sub-label">LOT 오래된 순 · 카드 클릭 = 차감 · 기록삭제 = 해당 기록 삭제</p>
+        <div id="summaryGREEN"></div>
+        <div id="stockGREEN"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="panelROASTED">
+      <div class="section">
+        <h2 class="section-title">01. ROASTED BEAN 입고</h2>
+        <div id="presetsROASTED" class="presets"></div>
+        <div class="grid">
+          <div class="grid grid-2">
+            <input id="nameROASTED" class="field" placeholder="품목명" autocomplete="off" />
+            <input id="processROASTED" class="field" placeholder="-" autocomplete="off" />
+          </div>
+          <div class="grid grid-2">
+            <input id="lotROASTED" class="field" placeholder="YY.MM.DD" inputmode="numeric" />
+            <div class="relative">
+              <input id="amountROASTED" class="field" type="number" step="0.5" min="0" placeholder="0" style="padding-right:48px;text-align:right" />
+              <span class="unit">KG</span>
+            </div>
+          </div>
+          <div>
+            <p class="sub-label">KG 추가</p>
+            <div class="kg-row">
+              <button class="kg-btn" data-add="1" data-tab="ROASTED">+1</button>
+              <button class="kg-btn" data-add="5" data-tab="ROASTED">+5</button>
+              <button class="kg-btn" data-add="10" data-tab="ROASTED">+10</button>
+              <button class="kg-btn" data-reset="1" data-tab="ROASTED" style="color:#94a3b8">초기화</button>
+            </div>
+          </div>
+          <button class="primary" data-submit="ROASTED">입고 데이터 기록</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">02. ROASTED BEAN 재고 현황</h2>
+        <p class="sub-label">LOT 오래된 순 · 카드 클릭 = 차감 · 기록삭제 = 해당 기록 삭제</p>
+        <div id="summaryROASTED"></div>
+        <div id="stockROASTED"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal" id="stockModal">
+    <div class="modal-box">
+      <button class="x" data-close="stockModal">×</button>
+      <div class="modal-body">
+        <span class="modal-kicker" id="modalLot">LOT</span>
+        <h3 class="modal-title" id="modalTitle"></h3>
+        <p class="modal-desc" id="modalProcess"></p>
+        <div class="current"><span>현재고</span><span id="modalCurrent">0kg</span></div>
+        <p class="sub-label" style="text-align:center">차감할 양 KG</p>
+        <div class="stepper">
+          <button id="minusBtn">−</button>
+          <input id="outAmount" type="number" step="0.5" value="0.5" />
+          <button id="plusBtn">+</button>
+        </div>
+        <button class="primary" id="outBtn">차감 실행</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="logModal">
+    <div class="modal-box">
+      <button class="x" data-close="logModal">×</button>
+      <div class="modal-body">
+        <span class="modal-kicker" style="background:var(--danger)">기록 삭제</span>
+        <h3 class="modal-title" id="logTitle"></h3>
+        <p class="modal-desc" id="logLot"></p>
+        <div class="notice">삭제는 행 번호가 아니라 고유 ID 기준으로 처리됩니다. 중간 행 삭제 후 다른 기록이 밀리는 문제를 방지했습니다.</div>
+        <div id="logList" class="grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="presetModal">
+    <div class="modal-box">
+      <button class="x" data-close="presetModal">×</button>
+      <div class="modal-body">
+        <span class="modal-kicker">즐겨찾기 추가</span>
+        <input type="hidden" id="presetTab" />
+        <div class="grid" style="margin-top:16px">
+          <div>
+            <p class="sub-label">품목명</p>
+            <input id="presetName" class="field" placeholder="예) 에티오피아 함벨라 G1" />
+          </div>
+          <div>
+            <p class="sub-label">프로세스</p>
+            <input id="presetProcess" class="field" placeholder="예) 워시드" />
+          </div>
+          <button class="primary" id="presetSaveBtn">즐겨찾기 저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STOCK_PRECISION = 1000;
+    const COUNTRY_PREFIX_RULES = [
+      { label:'에티오피아', patterns:['에티오피아','ethiopia'] },
+      { label:'케냐', patterns:['케냐','kenya'] },
+      { label:'콜롬비아', patterns:['콜롬비아','colombia'] },
+      { label:'브라질', patterns:['브라질','brazil'] },
+      { label:'과테말라', patterns:['과테말라','guatemala'] },
+      { label:'코스타리카', patterns:['코스타리카','costa rica','costarica'] },
+      { label:'페루', patterns:['페루','peru'] },
+      { label:'온두라스', patterns:['온두라스','honduras'] },
+      { label:'엘살바도르', patterns:['엘살바도르','el salvador','elsalvador'] },
+      { label:'파나마', patterns:['파나마','panama'] },
+      { label:'르완다', patterns:['르완다','rwanda'] },
+      { label:'부룬디', patterns:['부룬디','burundi'] },
+      { label:'탄자니아', patterns:['탄자니아','tanzania'] },
+      { label:'인도네시아', patterns:['인도네시아','indonesia'] },
+      { label:'멕시코', patterns:['멕시코','mexico'] },
+      { label:'니카라과', patterns:['니카라과','nicaragua'] },
+      { label:'에콰도르', patterns:['에콰도르','ecuador'] },
+      { label:'볼리비아', patterns:['볼리비아','bolivia'] },
+      { label:'예멘', patterns:['예멘','yemen'] },
+      { label:'중국', patterns:['중국','china'] },
+      { label:'우간다', patterns:['우간다','uganda'] }
+    ];
+
+    let currentTab = 'GREEN';
+    let selectedItem = null;
+    let presets = { GREEN: [], ROASTED: [] };
+
+    const $ = (id) => document.getElementById(id);
+
+    function normalizeAmount(value) {
+      const amount = Number.parseFloat(value);
+      if (!Number.isFinite(amount)) return 0;
+      const rounded = Math.round(amount * STOCK_PRECISION) / STOCK_PRECISION;
+      return Math.abs(rounded) < 0.000001 ? 0 : rounded;
+    }
+    function formatKg(value) { return normalizeAmount(value).toFixed(1); }
+    function formatSignedKg(value) {
+      const amount = normalizeAmount(value);
+      const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
+      return sign + Math.abs(amount).toFixed(1) + 'kg';
+    }
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+    function setStatus(text) { $('statusText').textContent = text; }
+    function todayLot() {
+      const now = new Date();
+      const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      return String(kst.getUTCFullYear()).slice(2) + '.' + String(kst.getUTCMonth() + 1).padStart(2, '0') + '.' + String(kst.getUTCDate()).padStart(2, '0');
+    }
+    function parseLotDateString(lot) {
+      const parts = String(lot || '').trim().split('.');
+      if (parts.length !== 3) return null;
+      const yy = Number.parseInt(parts[0], 10);
+      const mm = Number.parseInt(parts[1], 10);
+      const dd = Number.parseInt(parts[2], 10);
+      if (!/^\d{2}$/.test(parts[0]) || !Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return null;
+      const d = new Date(Date.UTC(2000 + yy, mm - 1, dd));
+      if (d.getUTCFullYear() !== 2000 + yy || d.getUTCMonth() !== mm - 1 || d.getUTCDate() !== dd) return null;
+      return d;
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        ...options,
+        headers: { 'content-type': 'application/json', ...(options.headers || {}) }
+      });
+      const isJson = (response.headers.get('content-type') || '').includes('application/json');
+      const payload = isJson ? await response.json() : null;
+      if (!response.ok || (payload && payload.ok === false)) {
+        throw new Error(payload?.error || '요청 처리에 실패했습니다.');
+      }
+      return payload?.data;
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+      document.querySelectorAll('.panel').forEach((panel) => panel.classList.toggle('active', panel.id === 'panel' + tab));
+    }
+
+    async function loadPresets() {
+      try {
+        presets = await api('/api/presets');
+      } catch (error) {
+        presets = { GREEN: [], ROASTED: [] };
+        alert('즐겨찾기 로드 실패: ' + error.message);
+      }
+      renderPresets('GREEN');
+      renderPresets('ROASTED');
+    }
+
+    function renderPresets(tab) {
+      const area = $('presets' + tab);
+      area.innerHTML = '';
+      (presets[tab] || []).forEach((preset, index) => {
+        const wrap = document.createElement('span');
+        wrap.className = 'preset';
+        const btn = document.createElement('button');
+        btn.textContent = preset.name + (preset.process ? ' · ' + preset.process : '');
+        btn.onclick = () => {
+          $('name' + tab).value = preset.name;
+          $('process' + tab).value = preset.process || '';
+        };
+        const del = document.createElement('button');
+        del.className = 'preset-del';
+        del.textContent = '×';
+        del.onclick = async () => {
+          if (!confirm('"' + preset.name + '" 즐겨찾기를 삭제할까요?')) return;
+          presets[tab].splice(index, 1);
+          renderPresets(tab);
+          await savePresets(tab);
+        };
+        wrap.append(btn, del);
+        area.appendChild(wrap);
+      });
+      const add = document.createElement('button');
+      add.className = 'preset-add';
+      add.textContent = '+ 즐겨찾기 추가';
+      add.onclick = () => openPresetModal(tab);
+      area.appendChild(add);
+    }
+
+    async function savePresets(tab) {
+      await api('/api/presets/' + tab, { method:'PUT', body: JSON.stringify({ presets: presets[tab] || [] }) });
+    }
+
+    function openPresetModal(tab) {
+      $('presetTab').value = tab;
+      $('presetName').value = '';
+      $('presetProcess').value = '';
+      showModal('presetModal');
+      setTimeout(() => $('presetName').focus(), 80);
+    }
+
+    function normalizeCoffeeText(value) {
+      return String(value || '').replace(/[\u00A0\t\r\n]+/g, ' ').replace(/[＿_\/|]+/g, ' ').replace(/[–—−]/g, '-').replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ').trim();
+    }
+    function escapeRegExp(value) { return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+    function splitCountryPrefix(name) {
+      const clean = normalizeCoffeeText(name);
+      const lower = clean.toLowerCase();
+      for (const rule of COUNTRY_PREFIX_RULES) {
+        for (const pattern of rule.patterns) {
+          const regex = new RegExp('^\\s*' + escapeRegExp(pattern) + '(?:\\s+|\\-|:|·|\\.|$)', 'i');
+          const match = lower.match(regex);
+          if (!match) continue;
+          const rest = clean.slice(match[0].length).replace(/^[-:·.\s]+/, '').trim();
+          return { country: rule.label, rest: normalizeCoffeeText(rest) };
+        }
+      }
+      return { country:'', rest:clean };
+    }
+    function stockGroupInfo(item) {
+      const name = normalizeCoffeeText(item?.name);
+      const process = normalizeCoffeeText(item?.process);
+      const split = splitCountryPrefix(name);
+      let label = split.country ? split.country + (split.rest ? ' ' + split.rest : '') : split.rest;
+      if (process) label += ' · ' + process;
+      label = normalizeCoffeeText(label) || '기타/미분류';
+      return { key: label.toLowerCase(), name: label };
+    }
+
+    function buildStockSummary(items) {
+      let total = 0;
+      const byGroup = new Map();
+      for (const [, item] of items) {
+        const amount = normalizeAmount(item.total);
+        if (amount <= 0) continue;
+        total = normalizeAmount(total + amount);
+        const group = stockGroupInfo(item);
+        if (!byGroup.has(group.key)) byGroup.set(group.key, { name: group.name, total: 0 });
+        byGroup.get(group.key).total = normalizeAmount(byGroup.get(group.key).total + amount);
+      }
+      const groups = [...byGroup.values()].filter((x) => x.total > 0).sort((a, b) => {
+        if (a.name === '기타/미분류') return 1;
+        if (b.name === '기타/미분류') return -1;
+        return b.total - a.total || a.name.localeCompare(b.name, 'ko');
+      });
+      return { total, groups };
+    }
+
+    function renderSummary(tab, items) {
+      const container = $('summary' + tab);
+      const summary = buildStockSummary(items);
+      if (summary.total <= 0) {
+        container.innerHTML = '<div class="empty">통합 재고 없음</div>';
+        return;
+      }
+      const chips = summary.groups.map((group) => `
+        <div class="chip"><span class="chip-name">${escapeHtml(group.name)}</span><span class="chip-amount">${formatKg(group.total)}kg</span></div>
+      `).join('');
+      container.innerHTML = `
+        <div class="summary">
+          <div class="summary-head">
+            <div><p class="summary-title">${tab === 'GREEN' ? 'GREEN BEAN' : 'ROASTED BEAN'} TOTAL</p><p class="summary-help">품목명·가공방식 기준 통합</p></div>
+            <div class="summary-total">${formatKg(summary.total)}<span style="font-size:12px;margin-left:3px">KG</span></div>
+          </div>
+          <div class="chips">${chips}</div>
+        </div>`;
+    }
+
+    async function fetchData() {
+      setStatus('LOADING...');
+      $('summaryGREEN').innerHTML = '<div class="empty">LOADING...</div>';
+      $('summaryROASTED').innerHTML = '<div class="empty">LOADING...</div>';
+      $('stockGREEN').innerHTML = '<div class="empty">LOADING...</div>';
+      $('stockROASTED').innerHTML = '<div class="empty">LOADING...</div>';
+      try {
+        const data = await api('/api/dashboard');
+        renderDashboard(data || {});
+        setStatus('UPDATED ' + new Date().toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' }));
+      } catch (error) {
+        setStatus('ERROR');
+        alert('데이터 로드 실패: ' + error.message);
+      }
+    }
+
+    function renderDashboard(data) {
+      const green = [];
+      const roasted = [];
+      Object.entries(data).forEach(([key, item]) => {
+        item.total = normalizeAmount(item.total);
+        if (item.total <= 0) return;
+        (item.category === 'ROASTED' ? roasted : green).push([key, item]);
+      });
+      const sortFn = (a, b) => (a[1].lotTimestamp || 9999999999999) - (b[1].lotTimestamp || 9999999999999);
+      green.sort(sortFn);
+      roasted.sort(sortFn);
+      renderSummary('GREEN', green);
+      renderSummary('ROASTED', roasted);
+      renderCards('GREEN', green);
+      renderCards('ROASTED', roasted);
+    }
+
+    function renderCards(tab, items) {
+      const container = $('stock' + tab);
+      if (!items.length) {
+        container.innerHTML = '<div class="empty">재고 없음</div>';
+        return;
+      }
+      container.innerHTML = '';
+      items.forEach(([key, item], index) => {
+        const dDay = item.dDay === '-' || item.dDay == null ? null : Number(item.dDay);
+        const accent = dDay !== null && dDay <= 30 ? 'border-left:5px solid var(--danger);' : dDay !== null && dDay <= 90 ? 'border-left:5px solid var(--warn);' : '';
+        const dColor = dDay !== null && dDay <= 30 ? 'var(--danger)' : 'var(--black)';
+        const process = item.process ? `<span class="tag">${escapeHtml(item.process)}</span>` : '';
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.cssText = accent;
+        card.innerHTML = `
+          <button class="card-main" type="button">
+            <div style="min-width:0;text-align:left">
+              <p class="lot"><span style="opacity:.35;margin-right:4px">${index + 1}</span>LOT ${escapeHtml(item.lot)}</p>
+              <h4 class="item-name">${escapeHtml(item.name)}</h4>
+              <div class="meta">${process}<p class="dday" style="color:${dColor}">${dDay === null ? 'D-Day -' : 'D-Day ' + dDay}</p></div>
+            </div>
+            <div class="stock"><span class="stock-num">${formatKg(item.total)}</span><span class="stock-unit">KG</span></div>
+          </button>
+          <button class="delete-zone" type="button">기록<br>삭제</button>
+        `;
+        card.querySelector('.card-main').onclick = () => openStockModal(key, item);
+        card.querySelector('.delete-zone').onclick = () => openLogModal(item.name, item.lot, item.category);
+        container.appendChild(card);
+      });
+    }
+
+    async function submitEntry(tab) {
+      const name = $('name' + tab).value.trim();
+      const process = $('process' + tab).value.trim();
+      const lot = $('lot' + tab).value.trim();
+      const amount = normalizeAmount($('amount' + tab).value);
+      if (!name || !lot || amount <= 0) return alert('품목명, LOT, 수량을 확인하세요.');
+      if (!parseLotDateString(lot)) return alert('LOT는 YY.MM.DD 형식의 실제 날짜로 입력하세요. 예) 26.06.01');
+      if (!confirm('[' + tab + '] ' + name + ' ' + amount + 'kg 입고 기록할까요?')) return;
+      try {
+        await api('/api/entries', { method:'POST', body: JSON.stringify({ item:name, process, lot, type:'입고', amount, category:tab }) });
+        alert('입고 완료');
+        $('name' + tab).value = '';
+        $('process' + tab).value = '';
+        $('amount' + tab).value = '';
+        $('lot' + tab).value = todayLot();
+        await fetchData();
+      } catch (error) {
+        alert('입고 실패: ' + error.message);
+      }
+    }
+
+    function openStockModal(key, item) {
+      const total = normalizeAmount(item.total);
+      selectedItem = { key, name:item.name, lot:item.lot, total, category:item.category };
+      $('outAmount').value = formatKg(Math.min(0.5, total));
+      $('modalLot').textContent = 'LOT ' + item.lot;
+      $('modalTitle').textContent = item.name;
+      $('modalProcess').textContent = item.process || '';
+      $('modalCurrent').textContent = formatKg(total) + 'kg';
+      showModal('stockModal');
+    }
+
+    function adjustOut(value) {
+      const current = normalizeAmount($('outAmount').value);
+      const max = selectedItem ? normalizeAmount(selectedItem.total) : 9999;
+      $('outAmount').value = formatKg(Math.min(max, Math.max(0.5, normalizeAmount(current + value))));
+    }
+
+    async function submitOut() {
+      if (!selectedItem) return alert('차감할 재고를 다시 선택하세요.');
+      let amount = normalizeAmount($('outAmount').value);
+      const available = normalizeAmount(selectedItem.total);
+      if (amount <= 0) return alert('차감량을 확인하세요.');
+      if (amount - available > 0.000001) return alert('재고보다 많은 양은 차감할 수 없습니다.');
+      amount = Math.min(amount, available);
+      if (!confirm(selectedItem.name + ' ' + amount + 'kg 차감할까요?')) return;
+      try {
+        await api('/api/entries', { method:'POST', body: JSON.stringify({ item:selectedItem.name, lot:selectedItem.lot, type:'로스팅', amount:-Math.abs(amount), category:selectedItem.category }) });
+        closeModal('stockModal');
+        alert('차감 완료');
+        await fetchData();
+      } catch (error) {
+        alert('차감 실패: ' + error.message);
+      }
+    }
+
+    async function openLogModal(item, lot, category) {
+      $('logTitle').textContent = item;
+      $('logLot').textContent = 'LOT ' + lot;
+      $('logList').innerHTML = '<div class="empty">LOADING...</div>';
+      showModal('logModal');
+      try {
+        const entries = await api('/api/entries?item=' + encodeURIComponent(item) + '&lot=' + encodeURIComponent(lot) + '&category=' + encodeURIComponent(category || ''));
+        renderLog(entries || []);
+      } catch (error) {
+        $('logList').innerHTML = '<div class="empty">로드 실패: ' + escapeHtml(error.message) + '</div>';
+      }
+    }
+
+    function renderLog(entries) {
+      const container = $('logList');
+      if (!entries.length) {
+        container.innerHTML = '<div class="empty">기록 없음</div>';
+        return;
+      }
+      container.innerHTML = '';
+      entries.forEach((entry) => {
+        const amount = normalizeAmount(entry.amount);
+        const row = document.createElement('div');
+        row.className = 'log-row';
+        row.innerHTML = `
+          <div class="log-info">
+            <p class="lot">${escapeHtml(entry.date)} · ${escapeHtml(entry.type)} · ${escapeHtml(entry.category)}</p>
+            <p class="log-title">${escapeHtml(entry.item)}${entry.process ? ' · ' + escapeHtml(entry.process) : ''}</p>
+          </div>
+          <span class="log-amount" style="color:${amount < 0 ? 'var(--danger)' : 'var(--black)'}">${formatSignedKg(amount)}</span>
+          <button class="danger-btn">삭제</button>
+        `;
+        row.querySelector('button').onclick = async () => {
+          if (!confirm('"' + entry.item + '" ' + entry.type + ' 기록을 삭제할까요?')) return;
+          try {
+            await api('/api/entries/' + encodeURIComponent(entry.id), { method:'DELETE' });
+            closeModal('logModal');
+            alert('삭제 완료');
+            await fetchData();
+          } catch (error) {
+            alert('삭제 실패: ' + error.message);
+          }
+        };
+        container.appendChild(row);
+      });
+    }
+
+    function showModal(id) { $(id).classList.add('show'); }
+    function closeModal(id) { $(id).classList.remove('show'); }
+
+    function bindEvents() {
+      document.querySelectorAll('.tab').forEach((btn) => btn.onclick = () => switchTab(btn.dataset.tab));
+      document.querySelectorAll('[data-add]').forEach((btn) => btn.onclick = () => {
+        const tab = btn.dataset.tab;
+        const el = $('amount' + tab);
+        const value = normalizeAmount((Number.parseFloat(el.value) || 0) + Number(btn.dataset.add));
+        el.value = value.toFixed(1).replace(/\.0$/, '');
+      });
+      document.querySelectorAll('[data-reset]').forEach((btn) => btn.onclick = () => $('amount' + btn.dataset.tab).value = '');
+      document.querySelectorAll('[data-submit]').forEach((btn) => btn.onclick = () => submitEntry(btn.dataset.submit));
+      document.querySelectorAll('[data-close]').forEach((btn) => btn.onclick = () => closeModal(btn.dataset.close));
+      $('minusBtn').onclick = () => adjustOut(-0.5);
+      $('plusBtn').onclick = () => adjustOut(0.5);
+      $('outBtn').onclick = submitOut;
+      $('refreshBtn').onclick = fetchData;
+      $('exportBtn').onclick = () => window.location.href = '/api/export.csv';
+      $('presetSaveBtn').onclick = async () => {
+        const tab = $('presetTab').value;
+        const name = $('presetName').value.trim();
+        const process = $('presetProcess').value.trim();
+        if (!name) return alert('품목명을 입력하세요.');
+        presets[tab].push({ name, process });
+        renderPresets(tab);
+        await savePresets(tab);
+        closeModal('presetModal');
+      };
+      document.querySelectorAll('.modal').forEach((modal) => {
+        modal.addEventListener('click', (event) => {
+          if (event.target === modal) modal.classList.remove('show');
+        });
+      });
+    }
+
+    async function init() {
+      bindEvents();
+      const lot = todayLot();
+      $('lotGREEN').value = lot;
+      $('lotROASTED').value = lot;
+      switchTab('GREEN');
+      await loadPresets();
+      await fetchData();
+    }
+
+    init();
+  </script>
+</body>
+</html>
