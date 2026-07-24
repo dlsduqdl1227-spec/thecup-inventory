@@ -17,7 +17,11 @@ export async function GET(
       .bind(movementId)
       .first<{ receiptKey: string | null; createdBy: number }>();
     if (!movement?.receiptKey) return Response.json({ error: "영수증을 찾을 수 없습니다." }, { status: 404 });
-    if (user.role === "instructor" && movement.createdBy !== user.id) {
+    if (
+      movement.createdBy !== user.id &&
+      !user.canInventory &&
+      !user.canFinance
+    ) {
       return Response.json({ error: "본인이 등록한 영수증만 볼 수 있습니다." }, { status: 403 });
     }
 

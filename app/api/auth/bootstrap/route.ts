@@ -29,8 +29,9 @@ export async function POST(request: Request) {
     const phone = normalizePhone(String(payload.phone ?? ""));
     const result = await db
       .prepare(
-        `INSERT INTO staff (name, phone_hash, phone_last4, role)
-         SELECT ?, ?, ?, 'admin'
+        `INSERT INTO staff
+          (name, phone_hash, phone_last4, role, can_finance, can_inventory, can_roasting)
+         SELECT ?, ?, ?, 'admin', 1, 1, 1
          WHERE NOT EXISTS (SELECT 1 FROM staff)`,
       )
       .bind(name, await phoneHash(phone), phone.slice(-4))
@@ -42,13 +43,25 @@ export async function POST(request: Request) {
     const session = await createSession(staffId);
     await audit(staffId, "bootstrap_admin", "staff", String(staffId), "최초 관리자 등록");
 
-    return new Response(JSON.stringify({ user: { id: staffId, name, role: "admin" } }), {
+    return new Response(
+      JSON.stringify({
+        user: {
+          id: staffId,
+          name,
+          role: "admin",
+          canFinance: true,
+          canInventory: true,
+          canRoasting: true,
+        },
+      }),
+      {
       status: 201,
       headers: {
         "content-type": "application/json; charset=utf-8",
         "set-cookie": sessionCookie(session.token, session.expiresAt),
       },
-    });
+      },
+    );
   } catch (error) {
     return jsonError(error);
   }

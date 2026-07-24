@@ -21,6 +21,9 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /EDU SYSTEM/);
   assert.match(app, /수업 사용 기록/);
   assert.match(app, /로스팅 프로파일/);
+  assert.match(app, /더컵 볶은 원두/);
+  assert.match(app, /STAFF ACCESS/);
+  assert.doesNotMatch(app, /OPERATIONS, REFINED|개월 매출 이관|단계 권한 분리/);
   assert.match(app, /Asia\/Seoul/);
   assert.match(app, /capture="environment"/);
   assert.match(styles, /--ink: #111111/);
@@ -59,20 +62,31 @@ test("migration covers identity, finance, inventory, receipts and roasting", asy
 });
 
 test("guards critical identity, date and persistence edge cases", async () => {
-  const [http, database, bootstrap, staff, milkPurchase, roasting] = await Promise.all([
+  const [http, database, auth, bootstrap, staff, finance, inventory, milkPurchase, roasting, permissionsMigration] = await Promise.all([
     readFile(new URL("lib/http.ts", root), "utf8"),
     readFile(new URL("lib/db.ts", root), "utf8"),
+    readFile(new URL("lib/auth.ts", root), "utf8"),
     readFile(new URL("app/api/auth/bootstrap/route.ts", root), "utf8"),
     readFile(new URL("app/api/staff/route.ts", root), "utf8"),
+    readFile(new URL("app/api/finance/route.ts", root), "utf8"),
+    readFile(new URL("app/api/inventory/route.ts", root), "utf8"),
     readFile(new URL("app/api/inventory/milk-purchase/route.ts", root), "utf8"),
     readFile(new URL("app/api/roasting/route.ts", root), "utf8"),
+    readFile(new URL("drizzle/0001_melted_scalphunter.sql", root), "utf8"),
   ]);
 
   assert.match(http, /getUTCDate\(\) !== day/);
   assert.match(http, /inventory_quantity_negative/);
   assert.match(database, /CREATE TRIGGER IF NOT EXISTS inventory_nonnegative_update/);
+  assert.match(auth, /requirePermission/);
   assert.match(bootstrap, /WHERE NOT EXISTS \(SELECT 1 FROM staff\)/);
   assert.match(staff, /마지막 활성 관리자의 권한/);
+  assert.match(staff, /can_finance END AS canFinance/);
+  assert.match(finance, /requirePermission\(request, "finance"\)/);
+  assert.match(inventory, /requirePermission\(request, "inventory"\)/);
   assert.match(milkPurchase, /last_insert_rowid\(\)/);
+  assert.match(roasting, /requirePermission\(request, "roasting"\)/);
   assert.match(roasting, /sqlite_sequence WHERE name = 'roasting_profiles'/);
+  assert.match(permissionsMigration, /ADD `can_finance`/);
+  assert.match(permissionsMigration, /WHERE `role` IN \('admin', 'employee'\)/);
 });

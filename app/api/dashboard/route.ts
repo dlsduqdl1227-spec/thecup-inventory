@@ -9,9 +9,8 @@ export async function GET(request: Request) {
     const db = getD1();
 
     const finance =
-      user.role === "instructor"
-        ? { results: [] }
-        : await db
+      user.canFinance
+        ? await db
             .prepare(
               `SELECT m.year, m.month,
                       m.revenue + COALESCE(SUM(CASE WHEN t.kind = 'income' THEN t.amount ELSE 0 END), 0) AS revenue,
@@ -27,20 +26,21 @@ export async function GET(request: Request) {
                GROUP BY m.id
                ORDER BY m.year, m.month`,
             )
-            .all();
+            .all()
+        : { results: [] };
 
     const inventory = await db
       .prepare(
         `SELECT id, category, name, unit, quantity, reorder_level AS reorderLevel,
                 CASE WHEN quantity <= reorder_level THEN 1 ELSE 0 END AS lowStock
          FROM inventory_items
-         WHERE active = 1 ${user.role === "instructor" ? "AND category IN ('milk','roasted','gusto')" : ""}
+         WHERE active = 1 ${user.canInventory ? "" : "AND category IN ('milk','roasted','gusto')"}
          ORDER BY category, name`,
       )
       .all();
 
     const movementSql =
-      user.role === "instructor"
+      !user.canInventory
         ? `SELECT m.id, m.movement_type AS movementType, m.quantity,
                   m.movement_date AS movementDate, m.note, m.class_name AS className,
                   m.cost_amount AS costAmount, m.receipt_key IS NOT NULL AS hasReceipt,
@@ -59,14 +59,13 @@ export async function GET(request: Request) {
            JOIN staff s ON s.id = m.created_by
            ORDER BY m.id DESC LIMIT 60`;
     const movements =
-      user.role === "instructor"
+      !user.canInventory
         ? await db.prepare(movementSql).bind(user.id).all()
         : await db.prepare(movementSql).all();
 
     const transactions =
-      user.role === "instructor"
-        ? { results: [] }
-        : await db
+      user.canFinance
+        ? await db
             .prepare(
               `SELECT t.id, t.kind, t.category, t.amount,
                       t.transaction_date AS transactionDate, t.description,
@@ -75,12 +74,12 @@ export async function GET(request: Request) {
                JOIN staff s ON s.id = t.created_by
                ORDER BY t.id DESC LIMIT 40`,
             )
-            .all();
+            .all()
+        : { results: [] };
 
     const profiles =
-      user.role === "instructor"
-        ? { results: [] }
-        : await db
+      user.canRoasting
+        ? await db
             .prepare(
               `SELECT p.id, p.bean_name AS beanName, p.origin, p.process,
                       p.batch_weight AS batchWeight, p.charge_temp AS chargeTemp,
@@ -95,7 +94,8 @@ export async function GET(request: Request) {
                JOIN staff s ON s.id = p.created_by
                ORDER BY p.id DESC`,
             )
-            .all();
+            .all()
+        : { results: [] };
 
     return Response.json({
       user,

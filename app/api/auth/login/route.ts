@@ -6,6 +6,7 @@ import {
   phoneHash,
   recordLoginFailure,
   sessionCookie,
+  normalizeSessionUser,
 } from "../../../../lib/auth";
 import { audit, ensureDatabase, getD1, type StaffRole } from "../../../../lib/db";
 import { assertSameOrigin, jsonError, textValue } from "../../../../lib/http";
@@ -21,16 +22,26 @@ export async function POST(request: Request) {
     const identifierHash = hashedPhone;
     await assertLoginAllowed(identifierHash);
 
-    const user = await getD1()
+    const row = await getD1()
       .prepare(
-        `SELECT id, name, role
+        `SELECT id, name, role,
+                can_finance AS canFinance,
+                can_inventory AS canInventory,
+                can_roasting AS canRoasting
          FROM staff
          WHERE name = ? AND phone_hash = ? AND active = 1`,
       )
       .bind(name, hashedPhone)
-      .first<{ id: number; name: string; role: StaffRole }>();
+      .first<{
+        id: number;
+        name: string;
+        role: StaffRole;
+        canFinance: number;
+        canInventory: number;
+        canRoasting: number;
+      }>();
 
-    if (!user) {
+    if (!row) {
       await recordLoginFailure(identifierHash);
       return Response.json(
         { error: "등록된 이름과 휴대폰 번호가 일치하지 않습니다." },
@@ -38,6 +49,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const user = normalizeSessionUser(row);
     await clearLoginFailures(identifierHash);
     const session = await createSession(user.id);
     await audit(user.id, "login", "session");

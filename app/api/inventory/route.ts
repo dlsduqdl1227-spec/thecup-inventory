@@ -1,4 +1,4 @@
-import { requireUser } from "../../../lib/auth";
+import { requirePermission } from "../../../lib/auth";
 import { audit, ensureDatabase, getD1 } from "../../../lib/db";
 import {
   assertSameOrigin,
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     await ensureDatabase();
-    const user = await requireUser(request, ["admin", "employee"]);
+    const user = await requirePermission(request, "inventory");
     const payload = (await request.json()) as Record<string, unknown>;
     const action = String(payload.action ?? "");
     const db = getD1();

@@ -15,6 +15,9 @@ type User = {
   id: number;
   name: string;
   role: Role;
+  canFinance: boolean;
+  canInventory: boolean;
+  canRoasting: boolean;
 };
 
 type FinanceMonth = {
@@ -105,6 +108,9 @@ type StaffMember = {
   name: string;
   phoneLast4: string;
   role: Role;
+  canFinance: number;
+  canInventory: number;
+  canRoasting: number;
   active: number;
   createdAt: string;
 };
@@ -134,7 +140,7 @@ const roleLabel: Record<Role, string> = {
 
 const categoryLabel: Record<InventoryItem["category"], string> = {
   green: "생두",
-  roasted: "더컵 원두",
+  roasted: "더컵 볶은 원두",
   gusto: "구스토 원두",
   milk: "우유",
   other: "기타",
@@ -144,18 +150,48 @@ const movementLabel: Record<string, string> = {
   in: "입고",
   out: "사용",
   adjust: "실사 조정",
-  roast_in: "로스팅 생산",
-  roast_out: "로스팅 투입",
+  roast_in: "볶은 원두 입고",
+  roast_out: "생두 투입",
 };
 
-const navItems: Array<{ key: TabKey; label: string; short: string; roles: Role[] }> = [
-  { key: "dashboard", label: "경영 대시보드", short: "대시보드", roles: ["admin", "employee"] },
-  { key: "record", label: "수업 사용 기록", short: "수업 기록", roles: ["admin", "employee", "instructor"] },
-  { key: "inventory", label: "재고 관리", short: "재고", roles: ["admin", "employee"] },
-  { key: "finance", label: "매출 · 비용", short: "매출", roles: ["admin", "employee"] },
-  { key: "roasting", label: "로스팅 프로파일", short: "로스팅", roles: ["admin", "employee"] },
-  { key: "staff", label: "직원 · 권한", short: "직원", roles: ["admin"] },
+type PermissionField = "canFinance" | "canInventory" | "canRoasting";
+
+const navItems: Array<{
+  key: TabKey;
+  label: string;
+  short: string;
+  permission?: PermissionField;
+  adminOnly?: boolean;
+}> = [
+  { key: "dashboard", label: "매출 대시보드", short: "대시보드", permission: "canFinance" },
+  { key: "record", label: "수업 사용 기록", short: "수업 기록" },
+  { key: "inventory", label: "재고 관리", short: "재고", permission: "canInventory" },
+  { key: "finance", label: "매출 · 비용", short: "매출", permission: "canFinance" },
+  { key: "roasting", label: "로스팅 프로파일", short: "로스팅", permission: "canRoasting" },
+  { key: "staff", label: "직원 · 권한", short: "직원", adminOnly: true },
 ];
+
+const permissionOptions: Array<{
+  field: PermissionField;
+  label: string;
+  description: string;
+}> = [
+  { field: "canFinance", label: "매출", description: "대시보드와 수입·지출" },
+  { field: "canInventory", label: "재고", description: "전체 재고와 로스팅 배치" },
+  { field: "canRoasting", label: "로스팅", description: "프로파일 열람" },
+];
+
+function allowedNavigation(user: User) {
+  return navItems.filter((item) => {
+    if (item.adminOnly) return user.role === "admin";
+    if (!item.permission) return true;
+    return user.role === "admin" || user[item.permission];
+  });
+}
+
+function initialTab(user: User): TabKey {
+  return allowedNavigation(user)[0]?.key ?? "record";
+}
 
 export function EduSystemApp() {
   const [authState, setAuthState] = useState<{
@@ -174,7 +210,7 @@ export function EduSystemApp() {
         "/api/auth/status",
       );
       setAuthState({ loading: false, ...status });
-      if (status.user?.role === "instructor") setActiveTab("record");
+      if (status.user) setActiveTab(initialTab(status.user));
     } catch (error) {
       setAuthState({ loading: false, bootstrapRequired: false, user: null });
       setToast({ kind: "error", message: errorMessage(error) });
@@ -219,7 +255,7 @@ export function EduSystemApp() {
         body: JSON.stringify(body),
       });
       setAuthState({ loading: false, bootstrapRequired: false, user: result.user });
-      setActiveTab(result.user.role === "instructor" ? "record" : "dashboard");
+      setActiveTab(initialTab(result.user));
       setToast({ kind: "ok", message: `${result.user.name}님, 환영합니다.` });
     } catch (error) {
       setToast({ kind: "error", message: errorMessage(error) });
@@ -265,7 +301,7 @@ export function EduSystemApp() {
   }
 
   const user = authState.user;
-  const allowedNav = navItems.filter((item) => item.roles.includes(user.role));
+  const allowedNav = allowedNavigation(user);
 
   return (
     <div className="app-shell">
@@ -386,18 +422,13 @@ function AuthScreen({
       <section className="auth-story">
         <BrandMark />
         <div className="auth-headline">
-          <span>OPERATIONS, REFINED.</span>
-          <h1>수업에서 로스팅까지,<br />하나의 흐름으로.</h1>
+          <span>STAFF ACCESS</span>
+          <h1>더컵에듀<br />운영 시스템</h1>
           <p>
-            재고와 영수증, 월별 경영 지표, 재현 가능한 로스팅 프로파일을
-            더컵에듀의 운영 방식에 맞춰 연결했습니다.
+            이름과 등록된 휴대폰 번호로 로그인하면 담당 업무에 필요한 메뉴만 표시됩니다.
           </p>
         </div>
-        <div className="auth-metrics" aria-hidden="true">
-          <div><b>36</b><span>개월 매출 이관</span></div>
-          <div><b>3</b><span>역할별 권한</span></div>
-          <div><b>1</b><span>통합 운영 화면</span></div>
-        </div>
+        <p className="auth-help">계정 등록과 메뉴 권한은 관리자에게 요청하세요.</p>
       </section>
       <section className="auth-panel">
         <div className="auth-card">
@@ -780,7 +811,7 @@ function InventoryView({
       <PageHeader
         eyebrow="STOCK CONTROL"
         title="재고 흐름을 한눈에"
-        description="기존 생두·로스팅 원두 관리에 구스토 잔량, 우유, 로스팅 생산 전환을 연결했습니다."
+        description="볶기 전 생두, 더컵 볶은 원두, 구스토 원두와 우유의 입고·사용량을 관리합니다."
       />
 
       <div className="inventory-grid">
@@ -818,21 +849,21 @@ function InventoryView({
         </article>
 
         <article className="panel compact-form-panel">
-          <div className="form-title"><span className="step-number">02</span><div><h3>로스팅 생산</h3><p>생두 차감 · 원두 입고</p></div></div>
-          <form onSubmit={(event) => submitJson(event, "/api/inventory/roast", "로스팅 생산 재고가 반영됐습니다.")}>
-            <Field label="사용 생두">
+          <div className="form-title"><span className="step-number">02</span><div><h3>로스팅 배치 등록</h3><p>생두 차감 · 볶은 원두 입고</p></div></div>
+          <form onSubmit={(event) => submitJson(event, "/api/inventory/roast", "로스팅 배치 재고가 반영됐습니다.")}>
+            <Field label="투입한 생두">
               <select name="greenItemId" required>{greenItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
             </Field>
-            <Field label="생산 원두">
+            <Field label="볶은 원두 입고 품목">
               <select name="roastedItemId" required>{roastedItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
             </Field>
             <div className="two-columns">
-              <Field label="생두 (kg)"><input name="greenKg" type="number" min="0.01" step="0.01" required /></Field>
-              <Field label="생산량 (g)"><input name="outputGrams" type="number" min="1" step="1" required /></Field>
+              <Field label="생두 투입량 (kg)"><input name="greenKg" type="number" min="0.01" step="0.01" required /></Field>
+              <Field label="볶은 원두 중량 (g)"><input name="outputGrams" type="number" min="1" step="1" required /></Field>
             </div>
             <Field label="날짜"><input name="movementDate" type="date" defaultValue={today} required /></Field>
             <Field label="메모"><input name="note" placeholder="배치 또는 프로파일명" /></Field>
-            <button className="secondary-button" disabled={busy}>생산 반영</button>
+            <button className="secondary-button" disabled={busy}>배치 재고 반영</button>
           </form>
         </article>
 
@@ -843,7 +874,7 @@ function InventoryView({
             <Field label="품목명"><input name="name" required placeholder="에티오피아 구지 워시드" /></Field>
             <div className="two-columns">
               <Field label="분류">
-                <select name="category"><option value="green">생두</option><option value="roasted">더컵 원두</option><option value="gusto">구스토 원두</option><option value="milk">우유</option><option value="other">기타</option></select>
+                <select name="category"><option value="green">생두</option><option value="roasted">더컵 볶은 원두</option><option value="gusto">구스토 원두</option><option value="milk">우유</option><option value="other">기타</option></select>
               </Field>
               <Field label="단위"><input name="unit" required placeholder="kg / g / 팩" /></Field>
             </div>
@@ -1365,7 +1396,15 @@ function StaffView({
     }
   }
 
-  async function updateStaff(member: StaffMember, patch: Partial<Pick<StaffMember, "role" | "active">>) {
+  async function updateStaff(
+    member: StaffMember,
+    patch: Partial<
+      Pick<
+        StaffMember,
+        "role" | "active" | "canFinance" | "canInventory" | "canRoasting"
+      >
+    >,
+  ) {
     try {
       await requestJson("/api/staff", {
         method: "PATCH",
@@ -1373,6 +1412,9 @@ function StaffView({
         body: JSON.stringify({
           id: member.id,
           role: patch.role ?? member.role,
+          canFinance: Boolean(patch.canFinance ?? member.canFinance),
+          canInventory: Boolean(patch.canInventory ?? member.canInventory),
+          canRoasting: Boolean(patch.canRoasting ?? member.canRoasting),
           active: Boolean(patch.active ?? member.active),
         }),
       });
@@ -1387,8 +1429,8 @@ function StaffView({
     <section className="page-section">
       <PageHeader
         eyebrow="ACCESS CONTROL"
-        title="등록된 사람에게 필요한 만큼만"
-        description="휴대폰 번호는 해시로 보관하며, 시간강사 권한은 수업 재고 기록으로 제한됩니다."
+        title="담당 업무만 선택해서 공개"
+        description="수업 사용 기록은 모든 직원에게 제공하고, 매출·재고·로스팅 메뉴는 직원별로 선택합니다."
       />
       <div className="staff-layout">
         <article className="panel staff-form">
@@ -1396,13 +1438,25 @@ function StaffView({
           <form onSubmit={addStaff}>
             <Field label="이름"><input name="name" required maxLength={40} /></Field>
             <Field label="휴대폰 번호"><input name="phone" type="tel" inputMode="numeric" placeholder="010-0000-0000" required /></Field>
-            <Field label="권한">
+            <Field label="직원 구분">
               <select name="role" defaultValue="instructor">
-                <option value="instructor">시간강사 · 수업 재고만</option>
-                <option value="employee">정규직원 · 운영 전체</option>
-                <option value="admin">관리자 · 직원 권한 포함</option>
+                <option value="instructor">시간강사</option>
+                <option value="employee">정규직원</option>
+                <option value="admin">관리자 · 모든 메뉴</option>
               </select>
             </Field>
+            <fieldset className="permission-fieldset">
+              <legend>추가 메뉴 권한</legend>
+              <p>수업 기록은 기본으로 제공됩니다.</p>
+              <div className="permission-grid">
+                {permissionOptions.map((permission) => (
+                  <label className="permission-choice" key={permission.field}>
+                    <input name={permission.field} type="checkbox" />
+                    <span><strong>{permission.label}</strong><small>{permission.description}</small></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <button className="primary-button" disabled={busy}>{busy ? "등록 중…" : "직원 등록"}</button>
           </form>
         </article>
@@ -1411,20 +1465,37 @@ function StaffView({
           <div className="staff-list">
             {staff.map((member) => (
               <div className={member.active ? "staff-row" : "staff-row inactive"} key={member.id}>
-                <div className="staff-avatar">{member.name.slice(0, 1)}</div>
-                <div className="staff-identity"><strong>{member.name}</strong><span>휴대폰 끝 4자리 · {member.phoneLast4}</span></div>
-                <select value={member.role} onChange={(event) => void updateStaff(member, { role: event.target.value as Role })} aria-label={`${member.name} 권한`}>
-                  <option value="admin">관리자</option><option value="employee">정규직원</option><option value="instructor">시간강사</option>
-                </select>
-                <label className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(member.active)}
-                    aria-label={`${member.name} 계정 ${member.active ? "비활성화" : "활성화"}`}
-                    onChange={(event) => void updateStaff(member, { active: event.target.checked ? 1 : 0 })}
-                  />
-                  <span />
-                </label>
+                <div className="staff-summary">
+                  <div className="staff-avatar">{member.name.slice(0, 1)}</div>
+                  <div className="staff-identity"><strong>{member.name}</strong><span>휴대폰 끝 4자리 · {member.phoneLast4}</span></div>
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(member.active)}
+                      aria-label={`${member.name} 계정 ${member.active ? "비활성화" : "활성화"}`}
+                      onChange={(event) => void updateStaff(member, { active: event.target.checked ? 1 : 0 })}
+                    />
+                    <span />
+                  </label>
+                </div>
+                <div className="staff-access-controls">
+                  <select value={member.role} onChange={(event) => void updateStaff(member, { role: event.target.value as Role })} aria-label={`${member.name} 직원 구분`}>
+                    <option value="admin">관리자</option><option value="employee">정규직원</option><option value="instructor">시간강사</option>
+                  </select>
+                  <div className="staff-permissions" aria-label={`${member.name} 메뉴 권한`}>
+                    {permissionOptions.map((permission) => (
+                      <label key={permission.field}>
+                        <input
+                          type="checkbox"
+                          checked={member.role === "admin" || Boolean(member[permission.field])}
+                          disabled={member.role === "admin"}
+                          onChange={(event) => void updateStaff(member, { [permission.field]: event.target.checked ? 1 : 0 })}
+                        />
+                        <span>{permission.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -1635,7 +1706,7 @@ function auditLabel(action: string): string {
     inventory_movement: "재고 변동",
     class_consumption: "수업 사용",
     milk_purchase: "우유 구매",
-    roast_inventory: "로스팅 생산",
+    roast_inventory: "로스팅 배치",
     create_roast_profile: "프로파일 생성",
     update_roast_profile: "프로파일 수정",
     delete_roast_profile: "프로파일 삭제",

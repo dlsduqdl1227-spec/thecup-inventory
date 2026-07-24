@@ -4,13 +4,21 @@ import { assertSameOrigin, jsonError, textValue } from "../../../lib/http";
 
 const allowedRoles: StaffRole[] = ["admin", "employee", "instructor"];
 
+function permissionFlag(value: unknown): number {
+  return value === true || value === 1 || value === "1" || value === "on" ? 1 : 0;
+}
+
 export async function GET(request: Request) {
   try {
     await ensureDatabase();
     await requireUser(request, ["admin"]);
     const staff = await getD1()
       .prepare(
-        `SELECT id, name, phone_last4 AS phoneLast4, role, active, created_at AS createdAt
+        `SELECT id, name, phone_last4 AS phoneLast4, role,
+                CASE WHEN role = 'admin' THEN 1 ELSE can_finance END AS canFinance,
+                CASE WHEN role = 'admin' THEN 1 ELSE can_inventory END AS canInventory,
+                CASE WHEN role = 'admin' THEN 1 ELSE can_roasting END AS canRoasting,
+                active, created_at AS createdAt
          FROM staff ORDER BY active DESC, role, name`,
       )
       .all();
@@ -37,17 +45,35 @@ export async function POST(request: Request) {
     const name = textValue(payload.name, "이름", 40).replace(/\s+/g, " ");
     const phone = normalizePhone(String(payload.phone ?? ""));
     const role = String(payload.role ?? "") as StaffRole;
+    const canFinance = role === "admin" ? 1 : permissionFlag(payload.canFinance);
+    const canInventory = role === "admin" ? 1 : permissionFlag(payload.canInventory);
+    const canRoasting = role === "admin" ? 1 : permissionFlag(payload.canRoasting);
     if (!allowedRoles.includes(role)) throw new Error("권한을 선택해 주세요.");
 
     const result = await getD1()
       .prepare(
-        `INSERT INTO staff (name, phone_hash, phone_last4, role)
-         VALUES (?, ?, ?, ?)`,
+        `INSERT INTO staff
+          (name, phone_hash, phone_last4, role, can_finance, can_inventory, can_roasting)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(name, await phoneHash(phone), phone.slice(-4), role)
+      .bind(
+        name,
+        await phoneHash(phone),
+        phone.slice(-4),
+        role,
+        canFinance,
+        canInventory,
+        canRoasting,
+      )
       .run();
     const id = Number(result.meta.last_row_id);
-    await audit(actor.id, "create_staff", "staff", String(id), `${name} · ${role}`);
+    await audit(
+      actor.id,
+      "create_staff",
+      "staff",
+      String(id),
+      `${name} · ${role} · 매출 ${canFinance} · 재고 ${canInventory} · 로스팅 ${canRoasting}`,
+    );
     return Response.json({ id }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
@@ -67,6 +93,9 @@ export async function PATCH(request: Request) {
     const id = Number(payload.id);
     const role = String(payload.role ?? "") as StaffRole;
     const active = payload.active === true ? 1 : 0;
+    const canFinance = role === "admin" ? 1 : permissionFlag(payload.canFinance);
+    const canInventory = role === "admin" ? 1 : permissionFlag(payload.canInventory);
+    const canRoasting = role === "admin" ? 1 : permissionFlag(payload.canRoasting);
     if (!Number.isInteger(id) || id <= 0) throw new Error("직원을 선택해 주세요.");
     if (!allowedRoles.includes(role)) throw new Error("권한을 선택해 주세요.");
     if (id === actor.id && (!active || role !== "admin")) {
@@ -91,10 +120,21 @@ export async function PATCH(request: Request) {
     }
 
     await db
-      .prepare("UPDATE staff SET role = ?, active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-      .bind(role, active, id)
+      .prepare(
+        `UPDATE staff
+         SET role = ?, can_finance = ?, can_inventory = ?, can_roasting = ?,
+             active = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+      )
+      .bind(role, canFinance, canInventory, canRoasting, active, id)
       .run();
-    await audit(actor.id, "update_staff", "staff", String(id), `${role} · active=${active}`);
+    await audit(
+      actor.id,
+      "update_staff",
+      "staff",
+      String(id),
+      `${role} · 매출 ${canFinance} · 재고 ${canInventory} · 로스팅 ${canRoasting} · active=${active}`,
+    );
     return Response.json({ ok: true });
   } catch (error) {
     return jsonError(error);

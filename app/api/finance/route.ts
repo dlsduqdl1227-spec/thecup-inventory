@@ -1,4 +1,4 @@
-import { requireUser } from "../../../lib/auth";
+import { requirePermission } from "../../../lib/auth";
 import { audit, ensureDatabase, getD1 } from "../../../lib/db";
 import {
   assertSameOrigin,
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     await ensureDatabase();
-    const user = await requireUser(request, ["admin", "employee"]);
+    const user = await requirePermission(request, "finance");
     const payload = (await request.json()) as Record<string, unknown>;
     const kind = String(payload.kind ?? "");
     if (kind !== "income" && kind !== "expense") throw new Error("수입 또는 지출을 선택해 주세요.");

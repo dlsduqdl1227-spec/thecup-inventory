@@ -207,31 +207,14 @@ a {
   line-height: 1.85;
 }
 
-.auth-metrics {
+.auth-help {
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  max-width: 610px;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
-}
-
-.auth-metrics div {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 22px 20px 0 0;
-}
-
-.auth-metrics b {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 30px;
-  font-weight: 500;
-}
-
-.auth-metrics span {
+  max-width: 420px;
+  margin: 0;
   color: rgba(255, 255, 255, 0.5);
   font-size: 11px;
+  line-height: 1.7;
 }
 
 .auth-panel {
@@ -1479,19 +1462,17 @@ td.expense {
 .staff-list {
   display: flex;
   flex-direction: column;
+  gap: 10px;
 }
 
 .staff-row {
-  display: grid;
-  grid-template-columns: 38px minmax(130px, 1fr) 128px 46px;
-  gap: 12px;
-  align-items: center;
-  border-top: 1px solid var(--line);
-  padding: 14px 0;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  padding: 16px;
 }
 
 .staff-row:first-child {
-  border-top: 0;
+  border-top: 1px solid var(--line);
 }
 
 .staff-row.inactive {
@@ -1509,6 +1490,13 @@ td.expense {
   font-family: Georgia, "Times New Roman", serif;
 }
 
+.staff-summary {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 40px;
+  gap: 12px;
+  align-items: center;
+}
+
 .staff-identity {
   display: flex;
   flex-direction: column;
@@ -1524,10 +1512,123 @@ td.expense {
   font-size: 9px;
 }
 
-.staff-row select {
-  min-height: 38px;
-  padding: 7px 9px;
+.staff-access-controls {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.staff-access-controls select {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.staff-permissions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.staff-permissions label {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--muted);
   font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.staff-permissions input {
+  position: absolute;
+  opacity: 0;
+}
+
+.staff-permissions label:has(input:checked) {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--white);
+}
+
+.staff-permissions label:has(input:disabled) {
+  cursor: default;
+  opacity: 0.82;
+}
+
+.permission-fieldset {
+  margin: 4px 0 20px;
+  border: 1px solid var(--line);
+  padding: 16px;
+}
+
+.permission-fieldset legend {
+  padding: 0 6px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.permission-fieldset > p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.permission-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.permission-choice {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.permission-choice input {
+  position: absolute;
+  opacity: 0;
+}
+
+.permission-choice > span {
+  display: flex;
+  min-height: 72px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  padding: 10px;
+}
+
+.permission-choice strong {
+  font-size: 11px;
+}
+
+.permission-choice small {
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.permission-choice input:checked + span {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--white);
+}
+
+.permission-choice input:checked + span small {
+  color: rgba(255, 255, 255, 0.58);
 }
 
 .toggle {
@@ -1645,6 +1746,25 @@ td.expense {
   display: none;
 }
 
+.brand strong,
+.auth-headline h1,
+.auth-card h2,
+.page-header h1,
+.kpi-card strong,
+.panel-heading h3,
+.form-title h3,
+.quarter-card > span,
+.stock-strip strong,
+.step-number,
+.profile-card strong,
+.profile-hero h2,
+.metric strong,
+.ror-grid strong,
+.empty-state strong,
+.staff-avatar {
+  font-family: inherit;
+}
+
 @media (max-width: 1180px) {
   .kpi-grid,
   .inventory-grid {
@@ -1679,13 +1799,17 @@ td.expense {
   }
 
   .mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
     display: flex;
     align-items: center;
     justify-content: space-between;
     min-height: 66px;
     border-bottom: 1px solid var(--line);
     background: rgba(242, 242, 242, 0.94);
-    padding: 12px 22px;
+    padding: 12px 16px;
+    backdrop-filter: blur(12px);
   }
 
   .mobile-user {
@@ -1719,7 +1843,7 @@ td.expense {
 
   .bottom-nav button {
     flex: 1 0 72px;
-    min-height: 42px;
+    min-height: 48px;
     border: 0;
     border-bottom: 2px solid transparent;
     background: transparent;
@@ -1733,7 +1857,7 @@ td.expense {
   }
 
   .page-section {
-    padding: 34px 22px 54px;
+    padding: 28px 16px 92px;
   }
 
   .dashboard-grid {
@@ -1773,6 +1897,12 @@ td.expense {
   .profile-card {
     flex: 0 0 230px;
   }
+
+  .table-wrap,
+  .profile-list,
+  .bottom-nav {
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1782,32 +1912,31 @@ td.expense {
 
   .auth-story {
     min-height: auto;
-    padding: 34px 25px 42px;
+    padding: 24px 20px 28px;
   }
 
   .auth-headline {
-    margin: 58px 0 50px;
+    margin: 32px 0 0;
   }
 
   .auth-headline h1 {
-    font-size: 42px;
+    margin: 12px 0 0;
+    font-size: 32px;
+    line-height: 1.12;
   }
 
   .auth-headline p {
-    font-size: 14px;
+    display: none;
+  }
+
+  .auth-help,
+  .auth-story .brand small {
+    display: none;
   }
 
   .auth-panel {
     min-height: auto;
-    padding: 50px 25px 70px;
-  }
-
-  .auth-metrics div {
-    padding-right: 10px;
-  }
-
-  .auth-metrics b {
-    font-size: 23px;
+    padding: 38px 20px 70px;
   }
 
   .page-header {
@@ -1817,7 +1946,7 @@ td.expense {
   }
 
   .page-header h1 {
-    font-size: 36px;
+    font-size: 32px;
   }
 
   .kpi-grid,
@@ -1897,8 +2026,23 @@ td.expense {
   }
 
   .staff-row {
-    grid-template-columns: 38px minmax(100px, 1fr) 105px 40px;
-    gap: 7px;
+    padding: 14px;
+  }
+
+  .staff-access-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .permission-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .permission-choice > span {
+    min-height: 58px;
+  }
+
+  .staff-permissions label {
+    min-height: 46px;
   }
 
   .audit-list {

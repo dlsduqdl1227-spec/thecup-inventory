@@ -1,4 +1,4 @@
-import { requireUser } from "../../../lib/auth";
+import { requirePermission, requireUser } from "../../../lib/auth";
 import { audit, ensureDatabase, getD1 } from "../../../lib/db";
 import { assertSameOrigin, jsonError } from "../../../lib/http";
 import { calculateRorMetrics, parseRoastProfile, type RoastPointInput } from "../../../lib/roasting";
@@ -6,7 +6,7 @@ import { calculateRorMetrics, parseRoastProfile, type RoastPointInput } from "..
 export async function GET(request: Request) {
   try {
     await ensureDatabase();
-    await requireUser(request, ["admin", "employee"]);
+    await requirePermission(request, "roasting");
     const db = getD1();
     const profiles = await db
       .prepare(

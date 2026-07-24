@@ -1,11 +1,15 @@
 import { env } from "cloudflare:workers";
 
 export type StaffRole = "admin" | "employee" | "instructor";
+export type StaffPermission = "finance" | "inventory" | "roasting";
 
 export type SessionUser = {
   id: number;
   name: string;
   role: StaffRole;
+  canFinance: boolean;
+  canInventory: boolean;
+  canRoasting: boolean;
 };
 
 type MonthlySeed = {
@@ -62,6 +66,9 @@ const schemaStatements = [
     phone_hash TEXT NOT NULL UNIQUE,
     phone_last4 TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('admin','employee','instructor')),
+    can_finance INTEGER NOT NULL DEFAULT 0,
+    can_inventory INTEGER NOT NULL DEFAULT 0,
+    can_roasting INTEGER NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -198,6 +205,7 @@ export async function ensureDatabase(): Promise<void> {
 async function initializeDatabase(): Promise<void> {
   const db = getD1();
   await db.batch(schemaStatements.map((statement) => db.prepare(statement)));
+  await ensureStaffPermissionColumns(db);
 
   const financeSeedStatements = monthlySeeds.map((row) =>
     db
@@ -219,7 +227,7 @@ async function initializeDatabase(): Promise<void> {
   const inventorySeedStatements = [
     ["milk", "수업용 우유", "팩", 8],
     ["gusto", "구스토 원두", "g", 1000],
-    ["roasted", "더컵 로스팅 원두", "g", 1000],
+    ["roasted", "더컵 볶은 원두", "g", 1000],
     ["green", "로스팅용 생두", "kg", 5],
   ].map(([category, name, unit, reorder]) =>
     db
@@ -232,6 +240,39 @@ async function initializeDatabase(): Promise<void> {
   );
 
   await db.batch([...financeSeedStatements, ...inventorySeedStatements]);
+  await db
+    .prepare(
+      `UPDATE inventory_items
+       SET name = '더컵 볶은 원두', updated_at = CURRENT_TIMESTAMP
+       WHERE category = 'roasted' AND name = '더컵 로스팅 원두'`,
+    )
+    .run();
+}
+
+async function ensureStaffPermissionColumns(db: D1Database): Promise<void> {
+  const columns = await db
+    .prepare("PRAGMA table_info(staff)")
+    .all<{ name: string }>();
+  const names = new Set(columns.results.map((column) => column.name));
+  const missing = [
+    ["can_finance", "ALTER TABLE staff ADD COLUMN can_finance INTEGER NOT NULL DEFAULT 0"],
+    ["can_inventory", "ALTER TABLE staff ADD COLUMN can_inventory INTEGER NOT NULL DEFAULT 0"],
+    ["can_roasting", "ALTER TABLE staff ADD COLUMN can_roasting INTEGER NOT NULL DEFAULT 0"],
+  ].filter(([name]) => !names.has(name));
+
+  for (const [, statement] of missing) {
+    await db.prepare(statement).run();
+  }
+
+  if (missing.length > 0) {
+    await db
+      .prepare(
+        `UPDATE staff
+         SET can_finance = 1, can_inventory = 1, can_roasting = 1
+         WHERE role IN ('admin', 'employee')`,
+      )
+      .run();
+  }
 }
 
 export async function audit(

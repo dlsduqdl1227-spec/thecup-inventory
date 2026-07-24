@@ -1,4 +1,10 @@
-import { ensureDatabase, getD1, type SessionUser, type StaffRole } from "./db";
+import {
+  ensureDatabase,
+  getD1,
+  type SessionUser,
+  type StaffPermission,
+  type StaffRole,
+} from "./db";
 
 const SESSION_COOKIE = "thecup_session";
 const SESSION_DAYS = 30;
@@ -60,14 +66,58 @@ export async function getSessionUser(request: Request): Promise<SessionUser | nu
   if (!token) return null;
   const row = await getD1()
     .prepare(
-      `SELECT s.id, s.name, s.role
+      `SELECT s.id, s.name, s.role,
+              s.can_finance AS canFinance,
+              s.can_inventory AS canInventory,
+              s.can_roasting AS canRoasting
        FROM sessions x
        JOIN staff s ON s.id = x.staff_id
        WHERE x.token_hash = ? AND x.expires_at > ? AND s.active = 1`,
     )
     .bind(await sha256(token), new Date().toISOString())
-    .first<{ id: number; name: string; role: StaffRole }>();
-  return row ?? null;
+    .first<{
+      id: number;
+      name: string;
+      role: StaffRole;
+      canFinance: number;
+      canInventory: number;
+      canRoasting: number;
+    }>();
+  return row ? normalizeSessionUser(row) : null;
+}
+
+export async function requirePermission(
+  request: Request,
+  permission: StaffPermission,
+): Promise<SessionUser> {
+  const user = await requireUser(request);
+  const allowed =
+    permission === "finance"
+      ? user.canFinance
+      : permission === "inventory"
+        ? user.canInventory
+        : user.canRoasting;
+  if (!allowed) throw new AuthError("이 메뉴를 사용할 권한이 없습니다.", 403);
+  return user;
+}
+
+export function normalizeSessionUser(row: {
+  id: number;
+  name: string;
+  role: StaffRole;
+  canFinance: number | boolean;
+  canInventory: number | boolean;
+  canRoasting: number | boolean;
+}): SessionUser {
+  const administrator = row.role === "admin";
+  return {
+    id: row.id,
+    name: row.name,
+    role: row.role,
+    canFinance: administrator || Boolean(row.canFinance),
+    canInventory: administrator || Boolean(row.canInventory),
+    canRoasting: administrator || Boolean(row.canRoasting),
+  };
 }
 
 export async function requireUser(
