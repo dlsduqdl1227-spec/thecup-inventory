@@ -58,7 +58,7 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /선택한 영수증 미리보기/);
   assert.match(app, /재고 기록 수정/);
   assert.match(app, /수입·지출 기록 수정/);
-  assert.match(app, /이관 원본/);
+  assert.match(app, /api\/inventory\/legacy/);
   assert.doesNotMatch(app, /event\.currentTarget\.reset\(\)/);
   assert.match(styles, /--ink: #111111/);
   assert.match(styles, /\.brand-lockup/);
@@ -82,8 +82,10 @@ test("ships the branded monochrome application instead of the starter preview", 
 });
 
 test("admin record routes preserve linked inventory, finance and receipt data", async () => {
-  const [movementRoute, financeRoute, adminRecords, milkPurchase, receiptRoute, imageSignature] = await Promise.all([
+  const [movementRoute, legacyRoute, legacyAdmin, financeRoute, adminRecords, milkPurchase, receiptRoute, imageSignature] = await Promise.all([
     readFile(new URL("app/api/inventory/movements/[id]/route.ts", root), "utf8"),
+    readFile(new URL("app/api/inventory/legacy/[id]/route.ts", root), "utf8"),
+    readFile(new URL("lib/legacy-admin.ts", root), "utf8"),
     readFile(new URL("app/api/finance/route.ts", root), "utf8"),
     readFile(new URL("lib/admin-records.ts", root), "utf8"),
     readFile(new URL("app/api/inventory/milk-purchase/route.ts", root), "utf8"),
@@ -94,6 +96,10 @@ test("admin record routes preserve linked inventory, finance and receipt data", 
   assert.match(movementRoute, /requireUser\(request, \["admin"\]\)/);
   assert.match(movementRoute, /export async function PATCH/);
   assert.match(movementRoute, /export async function DELETE/);
+  assert.match(legacyRoute, /requireUser\(request, \["admin"\]\)/);
+  assert.match(legacyRoute, /mutateLegacyInventoryEntry/);
+  assert.match(legacyAdmin, /UPDATE inventory_items/);
+  assert.match(legacyAdmin, /DELETE FROM entries/);
   assert.match(financeRoute, /update_finance/);
   assert.match(financeRoute, /delete_finance/);
   assert.match(adminRecords, /DELETE FROM receipt_files/);

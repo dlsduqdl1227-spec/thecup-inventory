@@ -60,6 +60,8 @@ type Movement = {
   receiptArchived: number;
   itemName: string;
   unit: string;
+  legacyProcess?: string;
+  legacyExpiryDate?: string | null;
   createdByName: string;
   createdAt: string;
 };
@@ -1879,15 +1881,23 @@ function MovementTable({
   notify?: (toast: { kind: "ok" | "error"; message: string }) => void;
 }) {
   const [editing, setEditing] = useState<Movement | null>(null);
-  const [busyId, setBusyId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<Movement["id"] | null>(null);
+
+  function movementEndpoint(movement: Movement): string {
+    if (typeof movement.id === "number") return `/api/inventory/movements/${movement.id}`;
+    const legacyId = movement.id.startsWith("legacy:")
+      ? movement.id.slice("legacy:".length)
+      : movement.id;
+    return `/api/inventory/legacy/${encodeURIComponent(legacyId)}`;
+  }
 
   async function saveMovement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editing || typeof editing.id !== "number" || !onUpdated || !notify) return;
+    if (!editing || !onUpdated || !notify) return;
     setBusyId(editing.id);
     try {
       const form = new FormData(event.currentTarget);
-      await requestJson(`/api/inventory/movements/${editing.id}`, {
+      await requestJson(movementEndpoint(editing), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(Object.fromEntries(form.entries())),
@@ -1903,11 +1913,14 @@ function MovementTable({
   }
 
   async function deleteMovement(movement: Movement) {
-    if (typeof movement.id !== "number" || !onUpdated || !notify) return;
-    if (!window.confirm(`${movement.itemName} 기록을 삭제할까요? 현재 재고와 연결된 비용·영수증도 함께 정리됩니다.`)) return;
+    if (!onUpdated || !notify) return;
+    const deleteMessage = typeof movement.id === "number"
+      ? `${movement.itemName} 기록을 삭제할까요? 현재 재고와 연결된 비용·영수증도 함께 정리됩니다.`
+      : `${movement.itemName} 이관 기록을 삭제할까요? 기존 재고 잔량도 함께 다시 계산됩니다.`;
+    if (!window.confirm(deleteMessage)) return;
     setBusyId(movement.id);
     try {
-      await requestJson(`/api/inventory/movements/${movement.id}`, { method: "DELETE" });
+      await requestJson(movementEndpoint(movement), { method: "DELETE" });
       await onUpdated();
       notify({ kind: "ok", message: "재고 기록을 삭제하고 현재 재고를 다시 계산했습니다." });
     } catch (error) {
@@ -1924,7 +1937,6 @@ function MovementTable({
           <thead><tr><th>일자</th><th>품목</th><th>구분</th><th>수량</th><th>수업 / 메모</th><th>비용</th><th>등록자</th><th>첨부</th>{isAdmin && <th>관리</th>}</tr></thead>
           <tbody>
             {movements.length ? movements.map((movement) => {
-              const editable = typeof movement.id === "number";
               return (
                 <tr key={movement.id}>
                   <td>{movement.movementDate}</td>
@@ -1941,14 +1953,12 @@ function MovementTable({
                       : "—"}</td>
                   {isAdmin && (
                     <td>
-                      {editable ? (
-                        <div className="record-actions">
-                          <button type="button" onClick={() => setEditing(movement)}>수정</button>
-                          <button type="button" className="danger" disabled={busyId === movement.id} onClick={() => void deleteMovement(movement)}>
-                            {busyId === movement.id ? "처리 중" : "삭제"}
-                          </button>
-                        </div>
-                      ) : <span className="readonly-record">이관 원본</span>}
+                      <div className="record-actions">
+                        <button type="button" onClick={() => setEditing(movement)}>수정</button>
+                        <button type="button" className="danger" disabled={busyId === movement.id} onClick={() => void deleteMovement(movement)}>
+                          {busyId === movement.id ? "처리 중" : "삭제"}
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -1958,7 +1968,7 @@ function MovementTable({
         </table>
       </div>
 
-      {editing && typeof editing.id === "number" && (
+      {editing && (
         <div className="record-modal-backdrop" role="presentation" onMouseDown={(event) => {
           if (event.currentTarget === event.target) setEditing(null);
         }}>
@@ -1982,12 +1992,21 @@ function MovementTable({
                   />
                 </Field>
               </div>
-              <Field label="수업명 (선택)"><input name="className" defaultValue={editing.className} maxLength={100} /></Field>
-              <Field label="메모 (선택)"><textarea name="note" rows={3} defaultValue={editing.note} maxLength={300} /></Field>
-              {(editing.costAmount > 0 || editing.hasReceipt > 0) && (
+              {typeof editing.id === "number" ? (
+                <>
+                  <Field label="수업명 (선택)"><input name="className" defaultValue={editing.className} maxLength={100} /></Field>
+                  <Field label="메모 (선택)"><textarea name="note" rows={3} defaultValue={editing.note} maxLength={300} /></Field>
+                </>
+              ) : (
+                <div className="two-columns">
+                  <Field label="가공 방식 (선택)"><input name="process" defaultValue={editing.legacyProcess ?? ""} maxLength={80} /></Field>
+                  <Field label="소비기한 (선택)"><input name="expiryDate" type="date" defaultValue={editing.legacyExpiryDate ?? ""} /></Field>
+                </div>
+              )}
+              {typeof editing.id === "number" && (editing.costAmount > 0 || editing.hasReceipt > 0) && (
                 <Field label="결제 금액"><div className="input-suffix"><input name="costAmount" type="number" min="1" step="1" defaultValue={editing.costAmount} required /><span>원</span></div></Field>
               )}
-              {editing.hasReceipt > 0 && <p className="linked-record-note">영수증과 지출 내역이 연결되어 있습니다. 날짜·금액 수정 시 함께 반영됩니다.</p>}
+              {typeof editing.id === "number" && editing.hasReceipt > 0 && <p className="linked-record-note">영수증과 지출 내역이 연결되어 있습니다. 날짜·금액 수정 시 함께 반영됩니다.</p>}
               <div className="record-modal-actions">
                 <button type="button" className="ghost-button" onClick={() => setEditing(null)}>취소</button>
                 <button className="primary-button" disabled={busyId === editing.id}>{busyId === editing.id ? "저장 중…" : "수정 저장"}</button>
@@ -2189,6 +2208,8 @@ function auditLabel(action: string): string {
     inventory_movement: "재고 변동",
     update_inventory_record: "재고 기록 수정",
     delete_inventory_record: "재고 기록 삭제",
+    update_legacy_inventory_record: "이관 재고 수정",
+    delete_legacy_inventory_record: "이관 재고 삭제",
     class_consumption: "수업 사용",
     milk_purchase: "우유 구매",
     roast_inventory: "로스팅 배치",

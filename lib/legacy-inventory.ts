@@ -32,6 +32,12 @@ export function normalizeLegacyCategory(
     : "green";
 }
 
+export function legacyInventoryKey(
+  entry: Pick<LegacyInventoryEntry, "item" | "lot" | "category">,
+): string {
+  return `${normalizeLegacyCategory(entry)}\u001f${entry.item.trim()}\u001f${entry.lot.trim()}`;
+}
+
 export function summarizeLegacyInventory(
   entries: LegacyInventoryEntry[],
 ): LegacyInventorySummary[] {
@@ -39,7 +45,7 @@ export function summarizeLegacyInventory(
 
   for (const entry of entries) {
     const category = normalizeLegacyCategory(entry);
-    const legacyKey = `${category}\u001f${entry.item.trim()}\u001f${entry.lot.trim()}`;
+    const legacyKey = legacyInventoryKey(entry);
     const existing = groups.get(legacyKey);
     const quantityDelta =
       category === "green" ? Number(entry.amount_mkg) / 1000 : Number(entry.amount_mkg);

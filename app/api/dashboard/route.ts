@@ -106,6 +106,8 @@ export async function GET(request: Request) {
         receiptArchived: 0,
         itemName: entry.item,
         unit: "kg",
+        legacyProcess: entry.process,
+        legacyExpiryDate: expiryDate,
         createdByName: "기존 재고 기록",
         createdAt: entry.created_at,
       };
