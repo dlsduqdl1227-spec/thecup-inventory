@@ -44,6 +44,11 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /create_item_with_stock/);
   assert.match(app, /재고 작업 선택/);
   assert.match(app, /재고 현황/);
+  assert.match(app, /소비기한 임박순/);
+  assert.match(app, /확인 필요 우선/);
+  assert.match(app, /수량 적은 순/);
+  assert.match(app, /수량 많은 순/);
+  assert.match(app, /compareInventoryItems/);
   assert.match(app, /formatInventoryAmount/);
   assert.match(app, /← 이전/);
   assert.match(app, />홈</);
@@ -72,6 +77,8 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(styles, /\.brand-logo-coffee img/);
   assert.match(styles, /Pretendard Variable/);
   assert.match(styles, /\.inventory-tabs/);
+  assert.match(styles, /\.inventory-overview-controls/);
+  assert.match(styles, /\.inventory-sort-control/);
   assert.match(styles, /\.inventory-card-controls/);
   assert.match(styles, /\.inventory-item-modal-actions/);
   assert.match(styles, /\.duration-input/);

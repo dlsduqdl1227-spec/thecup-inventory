@@ -11,6 +11,7 @@ import {
   formatInventoryAmount,
   formatSignedInventoryQuantity,
 } from "../../lib/quantity";
+import { compareInventoryItems, type InventorySort } from "../../lib/inventory-sort";
 
 type Role = "admin" | "employee" | "instructor";
 type TabKey = "dashboard" | "record" | "inventory" | "finance" | "roasting" | "staff";
@@ -927,15 +928,18 @@ function InventoryView({
   const [itemBusy, setItemBusy] = useState(false);
   const [inventoryTab, setInventoryTab] = useState<"overview" | "movement" | "roasting" | "new" | "history">("overview");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "green" | "beans" | "milk" | "other">("all");
+  const [inventorySort, setInventorySort] = useState<InventorySort>("expiry");
   const [movementItemId, setMovementItemId] = useState(data.inventory[0]?.id ?? 0);
   const greenItems = data.inventory.filter((item) => item.category === "green");
   const roastedItems = data.inventory.filter((item) => item.category === "roasted");
   const movementItem = data.inventory.find((item) => item.id === movementItemId) ?? data.inventory[0];
-  const visibleItems = data.inventory.filter((item) => {
-    if (categoryFilter === "all") return true;
-    if (categoryFilter === "beans") return item.category === "roasted" || item.category === "gusto";
-    return item.category === categoryFilter;
-  });
+  const visibleItems = data.inventory
+    .filter((item) => {
+      if (categoryFilter === "all") return true;
+      if (categoryFilter === "beans") return item.category === "roasted" || item.category === "gusto";
+      return item.category === categoryFilter;
+    })
+    .sort((left, right) => compareInventoryItems(left, right, inventorySort));
   const inventoryTabs = [
     { key: "overview", label: "재고 현황" },
     { key: "movement", label: "입출고" },
@@ -1039,17 +1043,29 @@ function InventoryView({
             <div className={data.inventory.some((item) => item.lowStock) ? "attention" : ""}><span>확인 필요</span><strong>{data.inventory.filter((item) => item.lowStock).length}<small>개</small></strong></div>
             <div><span>기존 기록</span><strong>{number.format(data.legacyInventoryCount)}<small>건</small></strong></div>
           </div>
-          <div className="inventory-filter" role="group" aria-label="재고 분류 필터">
-            {categoryFilters.map((filter) => (
-              <button
-                type="button"
-                className={categoryFilter === filter.key ? "active" : ""}
-                key={filter.key}
-                onClick={() => setCategoryFilter(filter.key)}
-              >
-                {filter.label}
-              </button>
-            ))}
+          <div className="inventory-overview-controls">
+            <div className="inventory-filter" role="group" aria-label="재고 분류 필터">
+              {categoryFilters.map((filter) => (
+                <button
+                  type="button"
+                  className={categoryFilter === filter.key ? "active" : ""}
+                  key={filter.key}
+                  onClick={() => setCategoryFilter(filter.key)}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+            <label className="inventory-sort-control">
+              <span>정렬</span>
+              <select value={inventorySort} onChange={(event) => setInventorySort(event.target.value as InventorySort)}>
+                <option value="expiry">소비기한 임박순</option>
+                <option value="attention">확인 필요 우선</option>
+                <option value="quantityAsc">수량 적은 순</option>
+                <option value="quantityDesc">수량 많은 순</option>
+                <option value="name">이름순</option>
+              </select>
+            </label>
           </div>
           <div className="inventory-grid">
             {visibleItems.map((item) => {

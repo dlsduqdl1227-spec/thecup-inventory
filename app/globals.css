@@ -1328,12 +1328,52 @@ td.expense {
   font-size: 10px;
 }
 
+.inventory-overview-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
 .inventory-filter {
+  flex: 1;
   display: flex;
   gap: 6px;
   overflow-x: auto;
-  margin-bottom: 14px;
   padding: 2px 0;
+}
+
+.inventory-sort-control {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inventory-sort-control > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.inventory-sort-control select {
+  min-width: 154px;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--white);
+  padding: 0 32px 0 11px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inventory-sort-control select:focus {
+  border-color: var(--ink);
+  outline: 2px solid rgba(17, 17, 17, 0.12);
+  outline-offset: 1px;
 }
 
 .inventory-filter button {
@@ -2818,6 +2858,27 @@ td,
   .inventory-filter {
     margin-right: -16px;
     padding-right: 16px;
+  }
+
+  .inventory-overview-controls {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .inventory-sort-control {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .inventory-sort-control > span {
+    font-size: 12px;
+  }
+
+  .inventory-sort-control select {
+    width: 100%;
+    min-height: 44px;
+    font-size: 13px;
   }
 
   .inventory-filter button {
