@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const action = String(payload.action ?? "");
     const db = getD1();
 
-    if (action === "create_item") {
+    if (action === "create_item" || action === "create_item_with_stock") {
       const name = textValue(payload.name, "품목명", 80);
       const category = String(payload.category ?? "");
       const lot = optionalText(payload.lot, 40);
@@ -30,18 +30,66 @@ export async function POST(request: Request) {
       const unit = textValue(payload.unit, "단위", 10);
       const reorderLevel = nonNegativeNumber(payload.reorderLevel, "최소 재고");
       if (!categories.includes(category)) throw new Error("재고 분류를 선택해 주세요.");
+      const withInitialStock = action === "create_item_with_stock";
+      const initialQuantity = withInitialStock
+        ? positiveNumber(payload.initialQuantity, "입고 수량")
+        : 0;
+      const movementDate = withInitialStock ? isoDate(payload.movementDate) : null;
+      const note = withInitialStock ? optionalText(payload.note, 300) : "";
       const result = await db
         .prepare(
           `INSERT INTO inventory_items
             (category, name, lot, process, expiry_date,
              unit, quantity, reorder_level, created_by)
-           VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .bind(category, name, lot, process, expiryDate, unit, reorderLevel, user.id)
+        .bind(
+          category,
+          name,
+          lot,
+          process,
+          expiryDate,
+          unit,
+          initialQuantity,
+          reorderLevel,
+          user.id,
+        )
         .run();
       const id = Number(result.meta.last_row_id);
-      await audit(user.id, "create_item", "inventory_item", String(id), name);
-      return Response.json({ id }, { status: 201 });
+      let movementId: number | null = null;
+
+      if (withInitialStock && movementDate) {
+        try {
+          const movement = await db
+            .prepare(
+              `INSERT INTO inventory_movements
+                (item_id, movement_type, quantity, movement_date, note, created_by)
+               VALUES (?, 'in', ?, ?, ?, ?)`,
+            )
+            .bind(id, initialQuantity, movementDate, note, user.id)
+            .run();
+          movementId = Number(movement.meta.last_row_id);
+        } catch (error) {
+          await db
+            .prepare(
+              `DELETE FROM inventory_items
+               WHERE id = ?
+                 AND NOT EXISTS (SELECT 1 FROM inventory_movements WHERE item_id = ?)`,
+            )
+            .bind(id, id)
+            .run();
+          throw error;
+        }
+      }
+
+      await audit(
+        user.id,
+        withInitialStock ? "create_item_with_stock" : "create_item",
+        "inventory_item",
+        String(id),
+        withInitialStock ? `${name} · 입고 ${initialQuantity}${unit}` : name,
+      );
+      return Response.json({ id, movementId, quantity: initialQuantity }, { status: 201 });
     }
 
     if (action !== "movement") throw new Error("재고 작업을 선택해 주세요.");

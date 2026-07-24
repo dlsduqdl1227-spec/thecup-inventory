@@ -240,7 +240,7 @@ async function initializeDatabase(): Promise<void> {
   const inventorySeedStatements = [
     ["milk", "수업용 우유", "팩", 8],
     ["gusto", "구스토 원두", "g", 1000],
-    ["roasted", "더컵 볶은 원두", "g", 1000],
+    ["roasted", "로스팅(원두)", "g", 1000],
     ["green", "로스팅용 생두", "kg", 5],
   ].map(([category, name, unit, reorder]) =>
     db
@@ -252,14 +252,15 @@ async function initializeDatabase(): Promise<void> {
       .bind(category, name, unit, reorder, name),
   );
 
-  await db.batch([...financeSeedStatements, ...inventorySeedStatements]);
   await db
     .prepare(
       `UPDATE inventory_items
-       SET name = '더컵 볶은 원두', updated_at = CURRENT_TIMESTAMP
-       WHERE category = 'roasted' AND name = '더컵 로스팅 원두'`,
+       SET name = '로스팅(원두)', updated_at = CURRENT_TIMESTAMP
+       WHERE category = 'roasted'
+         AND name IN ('더컵 로스팅 원두', '더컵 볶은 원두')`,
     )
     .run();
+  await db.batch([...financeSeedStatements, ...inventorySeedStatements]);
   await ensureLegacyInventory(db);
 }
 
@@ -356,10 +357,19 @@ async function ensureLegacyInventory(db: D1Database): Promise<void> {
       summaries.map((item) =>
         db
           .prepare(
-            `INSERT OR IGNORE INTO inventory_items
+            `INSERT INTO inventory_items
               (category, name, lot, process, expiry_date, legacy_key,
                unit, quantity, reorder_level, active)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+             ON CONFLICT(legacy_key) DO UPDATE SET
+               category = excluded.category,
+               name = excluded.name,
+               lot = excluded.lot,
+               process = excluded.process,
+               expiry_date = excluded.expiry_date,
+               unit = excluded.unit,
+               reorder_level = excluded.reorder_level,
+               updated_at = CURRENT_TIMESTAMP`,
           )
           .bind(
             item.category,

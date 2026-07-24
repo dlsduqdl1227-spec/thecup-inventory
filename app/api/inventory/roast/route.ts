@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const greenItemId = Number(payload.greenItemId);
     const roastedItemId = Number(payload.roastedItemId);
     const greenKg = positiveNumber(payload.greenKg, "생두 사용량");
-    const outputGrams = positiveNumber(payload.outputGrams, "볶은 원두 중량");
+    const outputGrams = positiveNumber(payload.outputGrams, "로스팅(원두) 중량");
     const movementDate = isoDate(payload.movementDate);
     const note = optionalText(payload.note, 300);
     const db = getD1();
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       .all<{ id: number; name: string; category: string; quantity: number; unit: string }>();
     const green = items.results.find((item) => item.id === greenItemId && item.category === "green");
     const roasted = items.results.find((item) => item.id === roastedItemId && item.category === "roasted");
-    if (!green || !roasted) throw new Error("투입할 생두와 볶은 원두 입고 품목을 정확히 선택해 주세요.");
+    if (!green || !roasted) throw new Error("투입할 생두와 로스팅(원두) 입고 품목을 정확히 선택해 주세요.");
     if (greenKg > Number(green.quantity)) throw new Error(`생두 재고가 부족합니다. 현재 ${green.quantity}${green.unit}입니다.`);
 
     await db.batch([

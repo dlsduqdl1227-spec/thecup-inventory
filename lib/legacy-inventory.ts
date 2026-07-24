@@ -47,7 +47,9 @@ export function summarizeLegacyInventory(
     if (existing) {
       existing.quantity += quantityDelta;
       if (!existing.process && entry.process) existing.process = entry.process;
-      if (!existing.expiryDate && entry.expiry_date) existing.expiryDate = entry.expiry_date;
+      if (!existing.expiryDate && entry.expiry_date) {
+        existing.expiryDate = toDateOnly(entry.expiry_date);
+      }
       continue;
     }
 
@@ -57,7 +59,7 @@ export function summarizeLegacyInventory(
       name: entry.item.trim(),
       lot: entry.lot.trim(),
       process: entry.process?.trim() ?? "",
-      expiryDate: entry.expiry_date || null,
+      expiryDate: toDateOnly(entry.expiry_date),
       unit: category === "green" ? "kg" : "g",
       quantity: quantityDelta,
       reorderLevel: category === "green" ? 5 : 1000,
@@ -73,6 +75,11 @@ export function summarizeLegacyInventory(
         "ko",
       ),
     );
+}
+
+export function toDateOnly(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return value.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] ?? null;
 }
 
 function roundQuantity(value: number): number {

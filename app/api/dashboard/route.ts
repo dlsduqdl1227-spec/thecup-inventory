@@ -4,7 +4,10 @@ import {
   getD1,
   readLegacyInventoryEntries,
 } from "../../../lib/db";
-import { normalizeLegacyCategory } from "../../../lib/legacy-inventory";
+import {
+  normalizeLegacyCategory,
+  toDateOnly,
+} from "../../../lib/legacy-inventory";
 import { jsonError } from "../../../lib/http";
 
 export async function GET(request: Request) {
@@ -83,6 +86,7 @@ export async function GET(request: Request) {
         : category === "green"
           ? "roast_out"
           : "out";
+      const expiryDate = toDateOnly(entry.expiry_date);
       return {
         id: `legacy:${entry.id}`,
         movementType,
@@ -91,7 +95,7 @@ export async function GET(request: Request) {
         note: [
           entry.lot ? `LOT ${entry.lot}` : "",
           entry.process,
-          entry.expiry_date ? `유효 ${entry.expiry_date}` : "",
+          expiryDate ? `소비기한 ${expiryDate}` : "",
         ].filter(Boolean).join(" · "),
         className: "",
         costAmount: 0,

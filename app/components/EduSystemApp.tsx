@@ -146,7 +146,7 @@ const roleLabel: Record<Role, string> = {
 
 const categoryLabel: Record<InventoryItem["category"], string> = {
   green: "생두",
-  roasted: "더컵 볶은 원두",
+  roasted: "로스팅(원두)",
   gusto: "구스토 원두",
   milk: "우유",
   other: "기타",
@@ -156,7 +156,7 @@ const movementLabel: Record<string, string> = {
   in: "입고",
   out: "사용",
   adjust: "실사 조정",
-  roast_in: "볶은 원두 입고",
+  roast_in: "로스팅(원두) 입고",
   roast_out: "생두 투입",
 };
 
@@ -449,7 +449,7 @@ function AuthScreen({
       <section className="auth-story">
         <BrandMark />
         <div className="auth-headline">
-          <span>STAFF ACCESS</span>
+          <span>직원 전용</span>
           <h1>더컵에듀<br />운영 시스템</h1>
           <p>
             이름과 등록된 휴대폰 번호로 로그인하면 담당 업무에 필요한 메뉴만 표시됩니다.
@@ -459,7 +459,7 @@ function AuthScreen({
       </section>
       <section className="auth-panel">
         <div className="auth-card">
-          <span className="eyebrow">{bootstrapRequired ? "FIRST SETUP" : "STAFF SIGN IN"}</span>
+          <span className="eyebrow">{bootstrapRequired ? "초기 설정" : "직원 로그인"}</span>
           <h2>{bootstrapRequired ? "초기 관리자 등록" : "직원 로그인"}</h2>
           <p>
             {bootstrapRequired
@@ -706,7 +706,7 @@ function RecordView({
   return (
     <section className="page-section">
       <PageHeader
-        eyebrow={instructor ? "INSTRUCTOR WORKSPACE" : "CLASS CONSUMPTION"}
+        eyebrow={instructor ? "내 수업 기록" : "수업 사용 기록"}
         title={instructor ? `${data.user.name}님의 수업 기록` : "수업별 사용량 기록"}
         description="우유 구매는 영수증과 비용까지, 수업 사용량은 원두와 우유 재고까지 한 번에 반영됩니다."
       />
@@ -802,7 +802,7 @@ function RecordView({
 
       <article className="panel table-panel">
         <div className="panel-heading">
-          <div><span className="eyebrow">RECENT ACTIVITY</span><h3>{instructor ? "내 최근 기록" : "최근 수업·구매 기록"}</h3></div>
+          <div><span className="eyebrow">최근 기록</span><h3>{instructor ? "내 최근 기록" : "최근 수업·구매 기록"}</h3></div>
         </div>
         <MovementTable movements={data.movements.filter((movement) => movement.className || movement.costAmount)} />
       </article>
@@ -847,9 +847,9 @@ function InventoryView({
   return (
     <section className="page-section">
       <PageHeader
-        eyebrow="STOCK CONTROL"
+        eyebrow="재고 현황"
         title="재고 관리"
-        description="생두 로트, 더컵 볶은 원두, 구스토 원두와 우유의 입고·사용 기록을 관리합니다."
+        description="생두 로트, 로스팅(원두), 구스토 원두와 우유의 입고·사용 기록을 관리합니다."
       />
 
       {data.legacyInventoryCount > 0 && (
@@ -868,7 +868,9 @@ function InventoryView({
               <div className="inventory-meta">
                 {item.lot && <span>LOT {item.lot}</span>}
                 {item.process && <span>{item.process}</span>}
-                {item.expiryDate && <span>유효 {item.expiryDate}</span>}
+                {formatDateOnly(item.expiryDate) && (
+                  <span>소비기한 {formatDateOnly(item.expiryDate)}</span>
+                )}
               </div>
             )}
             <strong>{number.format(item.quantity)}<small>{item.unit}</small></strong>
@@ -901,17 +903,17 @@ function InventoryView({
         </article>
 
         <article className="panel compact-form-panel">
-          <div className="form-title"><span className="step-number">02</span><div><h3>로스팅 배치 등록</h3><p>생두 차감 · 볶은 원두 입고</p></div></div>
+          <div className="form-title"><span className="step-number">02</span><div><h3>로스팅 배치 등록</h3><p>생두 차감 · 로스팅(원두) 입고</p></div></div>
           <form onSubmit={(event) => submitJson(event, "/api/inventory/roast", "로스팅 배치 재고가 반영됐습니다.")}>
             <Field label="투입한 생두">
               <select name="greenItemId" required>{greenItems.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</select>
             </Field>
-            <Field label="볶은 원두 입고 품목">
+            <Field label="로스팅(원두) 입고 품목">
               <select name="roastedItemId" required>{roastedItems.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</select>
             </Field>
             <div className="two-columns">
               <Field label="생두 투입량 (kg)"><input name="greenKg" type="number" min="0.01" step="0.01" required /></Field>
-              <Field label="볶은 원두 중량 (g)"><input name="outputGrams" type="number" min="1" step="1" required /></Field>
+              <Field label="로스팅(원두) 중량 (g)"><input name="outputGrams" type="number" min="1" step="1" required /></Field>
             </div>
             <Field label="날짜"><input name="movementDate" type="date" defaultValue={today} required /></Field>
             <Field label="메모"><input name="note" placeholder="배치 또는 프로파일명" /></Field>
@@ -920,9 +922,9 @@ function InventoryView({
         </article>
 
         <article className="panel compact-form-panel">
-          <div className="form-title"><span className="step-number">03</span><div><h3>새 품목</h3><p>생두 로트 등 추가</p></div></div>
-          <form onSubmit={(event) => submitJson(event, "/api/inventory", "새 재고 품목이 추가됐습니다.")}>
-            <input type="hidden" name="action" value="create_item" />
+          <div className="form-title"><span className="step-number">03</span><div><h3>새 품목 직접 입고</h3><p>목록에 없는 원두나 부자재를 바로 등록합니다.</p></div></div>
+          <form onSubmit={(event) => submitJson(event, "/api/inventory", "새 품목과 입고 수량이 함께 반영됐습니다.")}>
+            <input type="hidden" name="action" value="create_item_with_stock" />
             <Field label="품목명"><input name="name" required placeholder="에티오피아 구지 워시드" /></Field>
             <div className="two-columns">
               <Field label="LOT (선택)"><input name="lot" placeholder="26.07.24" /></Field>
@@ -930,19 +932,26 @@ function InventoryView({
             </div>
             <div className="two-columns">
               <Field label="분류">
-                <select name="category"><option value="green">생두</option><option value="roasted">더컵 볶은 원두</option><option value="gusto">구스토 원두</option><option value="milk">우유</option><option value="other">기타</option></select>
+                <select name="category"><option value="green">생두</option><option value="roasted">로스팅(원두)</option><option value="gusto">구스토 원두</option><option value="milk">우유</option><option value="other">기타</option></select>
               </Field>
               <Field label="단위"><input name="unit" required placeholder="kg / g / 팩" /></Field>
             </div>
-            <Field label="최소 재고"><input name="reorderLevel" type="number" min="0" step="0.1" defaultValue="0" /></Field>
-            <Field label="유효일 (선택)"><input name="expiryDate" type="date" /></Field>
-            <button className="secondary-button" disabled={busy}>품목 추가</button>
+            <div className="two-columns">
+              <Field label="입고 수량"><input name="initialQuantity" type="number" min="0.01" step="0.01" required /></Field>
+              <Field label="입고일"><input name="movementDate" type="date" defaultValue={today} required /></Field>
+            </div>
+            <div className="two-columns">
+              <Field label="최소 재고"><input name="reorderLevel" type="number" min="0" step="0.1" defaultValue="0" /></Field>
+              <Field label="소비기한 (선택)"><input name="expiryDate" type="date" /></Field>
+            </div>
+            <Field label="입고 메모 (선택)"><input name="note" placeholder="구매처, 입고 사유" maxLength={300} /></Field>
+            <button className="secondary-button" disabled={busy}>품목 등록 및 입고</button>
           </form>
         </article>
       </div>
 
       <article className="panel table-panel">
-        <div className="panel-heading"><div><span className="eyebrow">STOCK LEDGER</span><h3>최근 재고 기록</h3></div></div>
+        <div className="panel-heading"><div><span className="eyebrow">재고 장부</span><h3>최근 재고 기록</h3></div></div>
         <MovementTable movements={data.movements} />
       </article>
     </section>
@@ -985,13 +994,13 @@ function FinanceView({
   return (
     <section className="page-section">
       <PageHeader
-        eyebrow="REVENUE LEDGER"
+        eyebrow="수입 · 지출"
         title="수입 · 지출 내역"
         description="CSV 기준액 이후 새로 발생한 내역만 입력하세요. 우유 구매 비용은 자동으로 들어옵니다."
       />
       <div className="finance-layout">
         <article className="panel finance-entry">
-          <div className="panel-heading"><div><span className="eyebrow">NEW ENTRY</span><h3>수입 · 지출 등록</h3></div></div>
+          <div className="panel-heading"><div><span className="eyebrow">새 내역</span><h3>수입 · 지출 등록</h3></div></div>
           <form onSubmit={submit}>
             <div className="segmented">
               <label className={kind === "income" ? "active" : ""}><input type="radio" name="kind" value="income" checked={kind === "income"} onChange={() => setKind("income")} />수입</label>
@@ -1009,7 +1018,7 @@ function FinanceView({
 
         <article className="panel table-panel finance-ledger">
           <div className="panel-heading">
-            <div><span className="eyebrow">RECENT LEDGER</span><h3>최근 입력 내역</h3></div>
+            <div><span className="eyebrow">최근 장부</span><h3>최근 입력 내역</h3></div>
             <span className="csv-badge">CSV 2024–2026 이관 완료</span>
           </div>
           <div className="table-wrap">
@@ -1099,9 +1108,9 @@ function RoastingView({
   return (
     <section className="page-section">
       <PageHeader
-        eyebrow="ROASTING PLAYBOOK"
-        title="누구나 같은 맛을 재현하도록"
-        description="온도·가스·크랙·디벨롭을 한 곡선으로 기록하고 구간별 평균 ROR을 자동 계산합니다."
+        eyebrow="로스팅 기록"
+        title="로스팅 프로파일"
+        description="온도, 가스 압력, 1차 크랙과 배출 시점을 기록하고 구간별 평균 ROR을 확인합니다."
         action={user.role === "admin" ? <button className="primary-button small" onClick={() => setEditing("new")}>새 프로파일</button> : undefined}
       />
 
@@ -1125,9 +1134,9 @@ function RoastingView({
             <article className="panel profile-detail">
               <div className="profile-hero">
                 <div>
-                  <span className="eyebrow">{selected.origin || "ROAST PROFILE"} · {selected.process || "PROCESS"}</span>
+                  <span className="eyebrow">{selected.origin || "산지 미입력"} · {selected.process || "가공 방식 미입력"}</span>
                   <h2>{selected.beanName}</h2>
-                  <p>{number.format(selected.batchWeight)}kg batch · 작성 {selected.createdByName}</p>
+                  <p>{number.format(selected.batchWeight)}kg 배치 · 작성 {selected.createdByName}</p>
                 </div>
                 {user.role === "admin" && (
                   <div className="button-row">
@@ -1228,7 +1237,7 @@ function RoastProfileForm({
   return (
     <>
       <PageHeader
-        eyebrow="PROFILE EDITOR"
+        eyebrow="프로파일 작성"
         title={initial ? "로스팅 프로파일 수정" : "새 로스팅 프로파일"}
         description="초 단위 온도와 가스 압력을 기록하면 배출 후 구간별 ROR과 디벨롭 비율이 자동 계산됩니다."
         action={<button className="ghost-button" onClick={onCancel}>목록으로</button>}
@@ -1487,13 +1496,13 @@ function StaffView({
   return (
     <section className="page-section">
       <PageHeader
-        eyebrow="ACCESS CONTROL"
-        title="담당 업무만 선택해서 공개"
+        eyebrow="권한 관리"
+        title="직원 권한 관리"
         description="수업 사용 기록은 모든 직원에게 제공하고, 매출·재고·로스팅 메뉴는 직원별로 선택합니다."
       />
       <div className="staff-layout">
         <article className="panel staff-form">
-          <div className="panel-heading"><div><span className="eyebrow">NEW STAFF</span><h3>직원 등록</h3></div></div>
+          <div className="panel-heading"><div><span className="eyebrow">직원 등록</span><h3>새 직원</h3></div></div>
           <form onSubmit={addStaff}>
             <Field label="이름"><input name="name" required maxLength={40} /></Field>
             <Field label="휴대폰 번호"><input name="phone" type="tel" inputMode="numeric" placeholder="010-0000-0000" required /></Field>
@@ -1520,7 +1529,7 @@ function StaffView({
           </form>
         </article>
         <article className="panel staff-list-panel">
-          <div className="panel-heading"><div><span className="eyebrow">AUTHORIZED STAFF</span><h3>등록 직원</h3></div><span className="count-badge">{staff.filter((member) => member.active).length}명 사용 중</span></div>
+          <div className="panel-heading"><div><span className="eyebrow">등록 직원</span><h3>직원 목록</h3></div><span className="count-badge">{staff.filter((member) => member.active).length}명 사용 중</span></div>
           <div className="staff-list">
             {staff.map((member) => (
               <div className={member.active ? "staff-row" : "staff-row inactive"} key={member.id}>
@@ -1561,7 +1570,7 @@ function StaffView({
         </article>
       </div>
       <article className="panel audit-panel">
-        <div className="panel-heading"><div><span className="eyebrow">AUDIT TRAIL</span><h3>최근 변경 기록</h3></div></div>
+        <div className="panel-heading"><div><span className="eyebrow">변경 기록</span><h3>최근 작업</h3></div></div>
         <div className="audit-list">
           {audits.map((entry) => (
             <div key={entry.id}><span>{formatDateTime(entry.createdAt)}</span><strong>{entry.actorName ?? "시스템"}</strong><p>{auditLabel(entry.action)} · {entry.detail || entry.entityType}</p></div>
@@ -1735,6 +1744,10 @@ function inventoryOptionLabel(item: InventoryItem): string {
   return item.lot ? `${item.name} · LOT ${item.lot}` : item.name;
 }
 
+function formatDateOnly(value: string | null | undefined): string | null {
+  return value?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] ?? null;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "처리 중 오류가 발생했습니다.";
 }
@@ -1770,6 +1783,7 @@ function auditLabel(action: string): string {
     update_staff: "권한 변경",
     create_finance: "장부 입력",
     create_item: "품목 추가",
+    create_item_with_stock: "품목 등록 · 입고",
     inventory_movement: "재고 변동",
     class_consumption: "수업 사용",
     milk_purchase: "우유 구매",

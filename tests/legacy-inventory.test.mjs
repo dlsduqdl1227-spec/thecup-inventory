@@ -19,7 +19,11 @@ const legacy = await import(
 
 test("restores legacy green inventory by item and lot", () => {
   const rows = [
-    row({ amount_mkg: 22000, type: "입고" }),
+    row({
+      amount_mkg: 22000,
+      type: "입고",
+      expiry_date: "2027-03-09T01:32:10Z",
+    }),
     row({ amount_mkg: -500, type: "로스팅" }),
     row({ amount_mkg: -500, type: "로스팅" }),
     row({ amount_mkg: -2000, type: "로스팅" }),
@@ -31,6 +35,12 @@ test("restores legacy green inventory by item and lot", () => {
   assert.equal(summary.quantity, 19);
   assert.equal(summary.unit, "kg");
   assert.equal(summary.process, "에너로빅 워시드");
+  assert.equal(summary.expiryDate, "2027-03-09");
+});
+
+test("shows only valid calendar dates from legacy timestamps", () => {
+  assert.equal(legacy.toDateOnly("2027-03-09T01:32:10Z"), "2027-03-09");
+  assert.equal(legacy.toDateOnly("not-a-date"), null);
 });
 
 test("converts legacy Gusto millikilograms to grams", () => {
