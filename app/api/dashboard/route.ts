@@ -5,6 +5,7 @@ import {
   readLegacyInventoryEntries,
 } from "../../../lib/db";
 import {
+  legacyInventoryKey,
   normalizeLegacyCategory,
   toDateOnly,
 } from "../../../lib/legacy-inventory";
@@ -40,13 +41,28 @@ export async function GET(request: Request) {
     const inventory = await db
       .prepare(
         `SELECT id, category, name, lot, process, expiry_date AS expiryDate,
+                legacy_key AS legacyKey,
                 unit, quantity, reorder_level AS reorderLevel,
+                EXISTS(SELECT 1 FROM inventory_movements m WHERE m.item_id = inventory_items.id) AS hasMovements,
                 CASE WHEN quantity <= reorder_level THEN 1 ELSE 0 END AS lowStock
          FROM inventory_items
          WHERE active = 1 ${user.canInventory ? "" : "AND category IN ('milk','roasted','gusto')"}
          ORDER BY category, name`,
       )
-      .all();
+      .all<{
+        id: number;
+        category: string;
+        name: string;
+        lot: string;
+        process: string;
+        expiryDate: string | null;
+        legacyKey: string | null;
+        unit: string;
+        quantity: number;
+        reorderLevel: number;
+        hasMovements: number;
+        lowStock: number;
+      }>();
 
     const movementSql =
       !user.canInventory
@@ -81,14 +97,21 @@ export async function GET(request: Request) {
     const legacyEntries = user.canInventory
       ? await readLegacyInventoryEntries(db)
       : [];
+    const inventoryByLegacyKey = new Map(
+      inventory.results
+        .filter((item) => item.legacyKey)
+        .map((item) => [item.legacyKey as string, item]),
+    );
     const legacyMovements = legacyEntries.map((entry) => {
       const category = normalizeLegacyCategory(entry);
+      const masterItem = inventoryByLegacyKey.get(legacyInventoryKey(entry));
       const movementType = entry.type === "입고"
         ? "in"
         : category === "green"
           ? "roast_out"
           : "out";
       const expiryDate = toDateOnly(entry.expiry_date);
+      const displayedExpiryDate = toDateOnly(masterItem?.expiryDate) ?? expiryDate;
       return {
         id: `legacy:${entry.id}`,
         itemId: 0,
@@ -96,15 +119,15 @@ export async function GET(request: Request) {
         quantity: Number(entry.amount_mkg) / 1000,
         movementDate: entry.created_at.slice(0, 10),
         note: [
-          entry.lot ? `LOT ${entry.lot}` : "",
-          entry.process,
-          expiryDate ? `소비기한 ${expiryDate}` : "",
+          (masterItem?.lot ?? entry.lot) ? `LOT ${masterItem?.lot ?? entry.lot}` : "",
+          masterItem?.process ?? entry.process,
+          displayedExpiryDate ? `소비기한 ${displayedExpiryDate}` : "",
         ].filter(Boolean).join(" · "),
         className: "",
         costAmount: 0,
         hasReceipt: 0,
         receiptArchived: 0,
-        itemName: entry.item,
+        itemName: masterItem?.name ?? entry.item,
         unit: "kg",
         legacyProcess: entry.process,
         legacyExpiryDate: expiryDate,

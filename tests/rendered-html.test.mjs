@@ -57,6 +57,8 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /capture="environment"/);
   assert.match(app, /선택한 영수증 미리보기/);
   assert.match(app, /재고 기록 수정/);
+  assert.match(app, /품목 정보 수정/);
+  assert.match(app, /api\/inventory\/items\//);
   assert.match(app, /수입·지출 기록 수정/);
   assert.match(app, /api\/inventory\/legacy/);
   assert.doesNotMatch(app, /event\.currentTarget\.reset\(\)/);
@@ -65,6 +67,8 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(styles, /\.brand-logo-coffee img/);
   assert.match(styles, /Pretendard Variable/);
   assert.match(styles, /\.inventory-tabs/);
+  assert.match(styles, /\.inventory-card-controls/);
+  assert.match(styles, /\.inventory-item-modal-actions/);
   assert.match(styles, /\.mobile-history-nav/);
   assert.match(styles, /\.staff-delete-button/);
   assert.doesNotMatch(styles, /#17483b|#d9613e|#f3f0e7/i);
@@ -82,8 +86,9 @@ test("ships the branded monochrome application instead of the starter preview", 
 });
 
 test("admin record routes preserve linked inventory, finance and receipt data", async () => {
-  const [movementRoute, legacyRoute, legacyAdmin, financeRoute, adminRecords, milkPurchase, receiptRoute, imageSignature] = await Promise.all([
+  const [movementRoute, itemRoute, legacyRoute, legacyAdmin, financeRoute, adminRecords, milkPurchase, receiptRoute, imageSignature] = await Promise.all([
     readFile(new URL("app/api/inventory/movements/[id]/route.ts", root), "utf8"),
+    readFile(new URL("app/api/inventory/items/[id]/route.ts", root), "utf8"),
     readFile(new URL("app/api/inventory/legacy/[id]/route.ts", root), "utf8"),
     readFile(new URL("lib/legacy-admin.ts", root), "utf8"),
     readFile(new URL("app/api/finance/route.ts", root), "utf8"),
@@ -96,6 +101,13 @@ test("admin record routes preserve linked inventory, finance and receipt data", 
   assert.match(movementRoute, /requireUser\(request, \["admin"\]\)/);
   assert.match(movementRoute, /export async function PATCH/);
   assert.match(movementRoute, /export async function DELETE/);
+  assert.match(itemRoute, /requireUser\(request, \["admin"\]\)/);
+  assert.match(itemRoute, /export async function PATCH/);
+  assert.match(itemRoute, /export async function DELETE/);
+  assert.match(itemRoute, /classificationChanged/);
+  assert.match(itemRoute, /SET active = 0/);
+  assert.match(itemRoute, /update_inventory_item/);
+  assert.match(itemRoute, /hide_inventory_item/);
   assert.match(legacyRoute, /requireUser\(request, \["admin"\]\)/);
   assert.match(legacyRoute, /mutateLegacyInventoryEntry/);
   assert.match(legacyAdmin, /UPDATE inventory_items/);
@@ -188,6 +200,7 @@ test("guards critical identity, date and persistence edge cases", async () => {
   assert.match(database, /ALTER TABLE staff ADD COLUMN deleted_at TEXT/);
   assert.match(database, /readLegacyInventoryEntries/);
   assert.match(database, /summarizeLegacyInventory/);
+  assert.match(database, /ON CONFLICT\(legacy_key\) DO NOTHING/);
   const historicalSeeds = [...database.matchAll(
     /\{ year: (2022|2023), month: (\d+), revenue: (\d+), expense: (\d+) \}/g,
   )].map((match) => ({

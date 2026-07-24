@@ -44,6 +44,8 @@ type InventoryItem = {
   unit: string;
   quantity: number;
   reorderLevel: number;
+  legacyKey: string | null;
+  hasMovements: number;
   lowStock: number;
 };
 
@@ -921,6 +923,8 @@ function InventoryView({
   notify: (toast: { kind: "ok" | "error"; message: string }) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [itemBusy, setItemBusy] = useState(false);
   const [inventoryTab, setInventoryTab] = useState<"overview" | "movement" | "roasting" | "new" | "history">("overview");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "green" | "beans" | "milk" | "other">("all");
   const [movementItemId, setMovementItemId] = useState(data.inventory[0]?.id ?? 0);
@@ -965,6 +969,43 @@ function InventoryView({
       notify({ kind: "error", message: errorMessage(error) });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveInventoryItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingItem) return;
+    setItemBusy(true);
+    try {
+      const form = new FormData(event.currentTarget);
+      await requestJson(`/api/inventory/items/${editingItem.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(Object.fromEntries(form.entries())),
+      });
+      setEditingItem(null);
+      await onUpdated();
+      notify({ kind: "ok", message: "품목 정보를 수정했습니다. 연결된 재고 기록에도 새 명칭이 반영됩니다." });
+    } catch (error) {
+      notify({ kind: "error", message: errorMessage(error) });
+    } finally {
+      setItemBusy(false);
+    }
+  }
+
+  async function hideInventoryItem(item: InventoryItem) {
+    if (Math.abs(item.quantity) > 0.000001) return;
+    if (!window.confirm(`${item.name} 품목을 재고 현황에서 숨길까요? 기존 기록은 그대로 보관됩니다.`)) return;
+    setItemBusy(true);
+    try {
+      await requestJson(`/api/inventory/items/${item.id}`, { method: "DELETE" });
+      setEditingItem(null);
+      await onUpdated();
+      notify({ kind: "ok", message: "품목을 재고 현황에서 숨겼습니다. 기존 기록은 보관됩니다." });
+    } catch (error) {
+      notify({ kind: "error", message: errorMessage(error) });
+    } finally {
+      setItemBusy(false);
     }
   }
 
@@ -1018,7 +1059,10 @@ function InventoryView({
                 <article className={item.lowStock ? "inventory-card low" : "inventory-card"} key={item.id}>
                   <div className="inventory-card-top">
                     <span className="category-tag">{categoryLabel[item.category]}</span>
-                    <span className={item.lowStock ? "stock-status low" : "stock-status"}>{item.lowStock ? "확인 필요" : "정상"}</span>
+                    <div className="inventory-card-controls">
+                      <span className={item.lowStock ? "stock-status low" : "stock-status"}>{item.lowStock ? "확인 필요" : "정상"}</span>
+                      {data.user.role === "admin" && <button type="button" onClick={() => setEditingItem(item)}>정보 수정</button>}
+                    </div>
                   </div>
                   <h3>{item.name}</h3>
                   {(item.lot || item.process || item.expiryDate) && (
@@ -1124,6 +1168,64 @@ function InventoryView({
           />
         </article>
       )}
+
+      {editingItem && (() => {
+        const classificationLocked = Boolean(editingItem.legacyKey)
+          || Boolean(editingItem.hasMovements)
+          || Math.abs(editingItem.quantity) > 0.000001;
+        const currentAmount = formatInventoryAmount(editingItem.quantity, editingItem.unit);
+        return (
+          <div className="record-modal-backdrop" role="presentation" onMouseDown={(event) => {
+            if (event.currentTarget === event.target) setEditingItem(null);
+          }}>
+            <article className="record-modal" role="dialog" aria-modal="true" aria-labelledby="inventory-item-editor-title">
+              <div className="record-modal-heading">
+                <div><span className="eyebrow">관리자 편집</span><h3 id="inventory-item-editor-title">품목 정보 수정</h3></div>
+                <button type="button" aria-label="닫기" onClick={() => setEditingItem(null)}>×</button>
+              </div>
+              <p className="record-modal-summary"><strong>{editingItem.name}</strong> · 현재 {currentAmount.value}{currentAmount.unit}</p>
+              <form onSubmit={saveInventoryItem}>
+                <Field label="품목명"><input name="name" defaultValue={editingItem.name} maxLength={80} required autoFocus /></Field>
+                <div className="two-columns">
+                  <Field label="분류">
+                    {classificationLocked ? (
+                      <><input type="hidden" name="category" value={editingItem.category} /><input value={categoryLabel[editingItem.category]} disabled /></>
+                    ) : (
+                      <select name="category" defaultValue={editingItem.category}><option value="green">생두</option><option value="roasted">로스팅(원두)</option><option value="gusto">구스토 원두</option><option value="milk">우유</option><option value="other">기타</option></select>
+                    )}
+                  </Field>
+                  <Field label="단위">
+                    {classificationLocked ? (
+                      <><input type="hidden" name="unit" value={editingItem.unit} /><input value={editingItem.unit} disabled /></>
+                    ) : <input name="unit" defaultValue={editingItem.unit} maxLength={10} required />}
+                  </Field>
+                </div>
+                <div className="two-columns">
+                  <Field label="LOT (선택)"><input name="lot" defaultValue={editingItem.lot} maxLength={40} /></Field>
+                  <Field label="가공 방식 (선택)"><input name="process" defaultValue={editingItem.process} maxLength={80} /></Field>
+                </div>
+                <div className="two-columns">
+                  <Field label="소비기한 (선택)"><input name="expiryDate" type="date" defaultValue={formatDateOnly(editingItem.expiryDate) ?? ""} /></Field>
+                  <Field label={`최소 재고 (${editingItem.unit})`}><input name="reorderLevel" type="number" min="0" step="0.01" defaultValue={editingItem.reorderLevel} required /></Field>
+                </div>
+                <p className="linked-record-note">품목명을 수정하면 연결된 입출고·수업·영수증 기록에도 즉시 반영됩니다. 현재 잔량은 입출고 탭의 ‘실사 수량으로 조정’을 이용하세요.</p>
+                {classificationLocked && <p className="locked-field-note">기존 수량과 기록의 단위가 달라지지 않도록 분류와 단위는 잠겨 있습니다.</p>}
+                <div className="record-modal-actions inventory-item-modal-actions">
+                  <button
+                    type="button"
+                    className="ghost-button danger inventory-hide-button"
+                    disabled={itemBusy || Math.abs(editingItem.quantity) > 0.000001}
+                    onClick={() => void hideInventoryItem(editingItem)}
+                    title={Math.abs(editingItem.quantity) > 0.000001 ? "현재 재고를 0으로 조정한 뒤 숨길 수 있습니다." : "기존 기록을 보관하고 현황에서 숨깁니다."}
+                  >품목 숨기기</button>
+                  <button type="button" className="ghost-button" onClick={() => setEditingItem(null)}>취소</button>
+                  <button className="primary-button" disabled={itemBusy}>{itemBusy ? "저장 중…" : "수정 저장"}</button>
+                </div>
+              </form>
+            </article>
+          </div>
+        );
+      })()}
     </section>
   );
 }
@@ -2205,6 +2307,8 @@ function auditLabel(action: string): string {
     delete_finance: "장부 삭제",
     create_item: "품목 추가",
     create_item_with_stock: "품목 등록 · 입고",
+    update_inventory_item: "품목 정보 수정",
+    hide_inventory_item: "품목 숨김",
     inventory_movement: "재고 변동",
     update_inventory_record: "재고 기록 수정",
     delete_inventory_record: "재고 기록 삭제",

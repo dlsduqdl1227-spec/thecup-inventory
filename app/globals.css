@@ -1209,6 +1209,26 @@ td.expense {
   line-height: 1.55;
 }
 
+.locked-field-note {
+  margin: -5px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.inventory-item-modal-actions {
+  align-items: center;
+}
+
+.inventory-hide-button {
+  margin-right: auto;
+}
+
+.inventory-hide-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .inventory-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1323,6 +1343,29 @@ td.expense {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.inventory-card-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inventory-card-controls button {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  padding: 0 9px;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.inventory-card-controls button:hover {
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .stock-status {
@@ -2622,6 +2665,17 @@ td,
     flex: 1;
   }
 
+  .inventory-item-modal-actions {
+    flex-wrap: wrap;
+  }
+
+  .inventory-item-modal-actions .inventory-hide-button {
+    flex: 1 0 100%;
+    order: 3;
+    min-height: 42px;
+    margin-right: 0;
+  }
+
   .record-actions button {
     min-height: 38px;
     padding: 0 11px;
@@ -2681,6 +2735,12 @@ td,
 
   .inventory-card-top .stock-status {
     font-size: 11px;
+  }
+
+  .inventory-card-controls button {
+    min-height: 38px;
+    padding: 0 11px;
+    font-size: 12px;
   }
 
   .inventory-source-note {

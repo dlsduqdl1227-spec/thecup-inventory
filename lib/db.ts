@@ -388,15 +388,7 @@ async function ensureLegacyInventory(db: D1Database): Promise<void> {
               (category, name, lot, process, expiry_date, legacy_key,
                unit, quantity, reorder_level, active)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-             ON CONFLICT(legacy_key) DO UPDATE SET
-               category = excluded.category,
-               name = excluded.name,
-               lot = excluded.lot,
-               process = excluded.process,
-               expiry_date = excluded.expiry_date,
-               unit = excluded.unit,
-               reorder_level = excluded.reorder_level,
-               updated_at = CURRENT_TIMESTAMP`,
+             ON CONFLICT(legacy_key) DO NOTHING`,
           )
           .bind(
             item.category,
