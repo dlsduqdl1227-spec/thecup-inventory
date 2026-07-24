@@ -29,7 +29,7 @@ export async function POST(request: Request) {
                 can_inventory AS canInventory,
                 can_roasting AS canRoasting
          FROM staff
-         WHERE name = ? AND phone_hash = ? AND active = 1`,
+         WHERE name = ? AND phone_hash = ? AND active = 1 AND deleted_at IS NULL`,
       )
       .bind(name, hashedPhone)
       .first<{

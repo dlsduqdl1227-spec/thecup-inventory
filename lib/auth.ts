@@ -72,7 +72,8 @@ export async function getSessionUser(request: Request): Promise<SessionUser | nu
               s.can_roasting AS canRoasting
        FROM sessions x
        JOIN staff s ON s.id = x.staff_id
-       WHERE x.token_hash = ? AND x.expires_at > ? AND s.active = 1`,
+       WHERE x.token_hash = ? AND x.expires_at > ?
+         AND s.active = 1 AND s.deleted_at IS NULL`,
     )
     .bind(await sha256(token), new Date().toISOString())
     .first<{

@@ -43,6 +43,13 @@
       "when": 1784870267589,
       "tag": "0005_clean_red_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784873100801,
+      "tag": "0006_nappy_winter_soldier",
+      "breakpoints": true
     }
   ]
 }

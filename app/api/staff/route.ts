@@ -19,7 +19,9 @@ export async function GET(request: Request) {
                 CASE WHEN role = 'admin' THEN 1 ELSE can_inventory END AS canInventory,
                 CASE WHEN role = 'admin' THEN 1 ELSE can_roasting END AS canRoasting,
                 active, created_at AS createdAt
-         FROM staff ORDER BY active DESC, role, name`,
+         FROM staff
+         WHERE deleted_at IS NULL
+         ORDER BY active DESC, role, name`,
       )
       .all();
     const audits = await getD1()
@@ -104,7 +106,7 @@ export async function PATCH(request: Request) {
 
     const db = getD1();
     const target = await db
-      .prepare("SELECT role, active FROM staff WHERE id = ?")
+      .prepare("SELECT role, active FROM staff WHERE id = ? AND deleted_at IS NULL")
       .bind(id)
       .first<{ role: StaffRole; active: number }>();
     if (!target) {
@@ -112,7 +114,7 @@ export async function PATCH(request: Request) {
     }
     if (target.role === "admin" && Boolean(target.active) && (!active || role !== "admin")) {
       const administrators = await db
-        .prepare("SELECT COUNT(*) AS count FROM staff WHERE role = 'admin' AND active = 1")
+        .prepare("SELECT COUNT(*) AS count FROM staff WHERE role = 'admin' AND active = 1 AND deleted_at IS NULL")
         .first<{ count: number }>();
       if (Number(administrators?.count ?? 0) <= 1) {
         throw new Error("마지막 활성 관리자의 권한은 낮추거나 비활성화할 수 없습니다.");
@@ -124,7 +126,7 @@ export async function PATCH(request: Request) {
         `UPDATE staff
          SET role = ?, can_finance = ?, can_inventory = ?, can_roasting = ?,
              active = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
+         WHERE id = ? AND deleted_at IS NULL`,
       )
       .bind(role, canFinance, canInventory, canRoasting, active, id)
       .run();
@@ -135,6 +137,54 @@ export async function PATCH(request: Request) {
       String(id),
       `${role} · 매출 ${canFinance} · 재고 ${canInventory} · 로스팅 ${canRoasting} · active=${active}`,
     );
+    return Response.json({ ok: true });
+  } catch (error) {
+    return jsonError(error);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    assertSameOrigin(request);
+    await ensureDatabase();
+    const actor = await requireUser(request, ["admin"]);
+    const payload = (await request.json()) as Record<string, unknown>;
+    const id = Number(payload.id);
+    if (!Number.isInteger(id) || id <= 0) throw new Error("삭제할 직원을 선택해 주세요.");
+    if (id === actor.id) throw new Error("현재 로그인한 관리자 본인의 계정은 삭제할 수 없습니다.");
+
+    const db = getD1();
+    const target = await db
+      .prepare("SELECT name, role, active FROM staff WHERE id = ? AND deleted_at IS NULL")
+      .bind(id)
+      .first<{ name: string; role: StaffRole; active: number }>();
+    if (!target) {
+      return Response.json({ error: "삭제할 직원을 찾을 수 없습니다." }, { status: 404 });
+    }
+    if (target.role === "admin" && Boolean(target.active)) {
+      const administrators = await db
+        .prepare("SELECT COUNT(*) AS count FROM staff WHERE role = 'admin' AND active = 1 AND deleted_at IS NULL")
+        .first<{ count: number }>();
+      if (Number(administrators?.count ?? 0) <= 1) {
+        throw new Error("마지막 활성 관리자 계정은 삭제할 수 없습니다.");
+      }
+    }
+
+    await db.batch([
+      db.prepare("DELETE FROM sessions WHERE staff_id = ?").bind(id),
+      db
+        .prepare(
+          `UPDATE staff
+           SET active = 0,
+               phone_hash = 'deleted:' || id || ':' || phone_hash,
+               phone_last4 = '',
+               deleted_at = CURRENT_TIMESTAMP,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND deleted_at IS NULL`,
+        )
+        .bind(id),
+    ]);
+    await audit(actor.id, "delete_staff", "staff", String(id), `${target.name} · 계정 삭제`);
     return Response.json({ ok: true });
   } catch (error) {
     return jsonError(error);

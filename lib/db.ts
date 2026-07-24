@@ -25,6 +25,30 @@ type MonthlySeed = {
 };
 
 const monthlySeeds: MonthlySeed[] = [
+  { year: 2022, month: 1, revenue: 0, expense: 0 },
+  { year: 2022, month: 2, revenue: 0, expense: 0 },
+  { year: 2022, month: 3, revenue: 1700000, expense: 0 },
+  { year: 2022, month: 4, revenue: 6091520, expense: 183150 },
+  { year: 2022, month: 5, revenue: 10694570, expense: 911200 },
+  { year: 2022, month: 6, revenue: 10333400, expense: 946800 },
+  { year: 2022, month: 7, revenue: 11022280, expense: 361600 },
+  { year: 2022, month: 8, revenue: 5937300, expense: 1720400 },
+  { year: 2022, month: 9, revenue: 14788410, expense: 487100 },
+  { year: 2022, month: 10, revenue: 5673000, expense: 700360 },
+  { year: 2022, month: 11, revenue: 6136000, expense: 613500 },
+  { year: 2022, month: 12, revenue: 11398280, expense: 201600 },
+  { year: 2023, month: 1, revenue: 6662500, expense: 446825 },
+  { year: 2023, month: 2, revenue: 9840000, expense: 1068720 },
+  { year: 2023, month: 3, revenue: 10956500, expense: 603610 },
+  { year: 2023, month: 4, revenue: 14006008, expense: 685140 },
+  { year: 2023, month: 5, revenue: 13762500, expense: 585890 },
+  { year: 2023, month: 6, revenue: 11995689, expense: 774620 },
+  { year: 2023, month: 7, revenue: 14490182, expense: 1011350 },
+  { year: 2023, month: 8, revenue: 11347000, expense: 684895 },
+  { year: 2023, month: 9, revenue: 14600818, expense: 1100350 },
+  { year: 2023, month: 10, revenue: 7038800, expense: 697431 },
+  { year: 2023, month: 11, revenue: 23260364, expense: 760865 },
+  { year: 2023, month: 12, revenue: 6465000, expense: 624490 },
   { year: 2024, month: 1, revenue: 11416000, expense: 388280 },
   { year: 2024, month: 2, revenue: 7211500, expense: 363585 },
   { year: 2024, month: 3, revenue: 7110000, expense: 444405 },
@@ -74,6 +98,7 @@ const schemaStatements = [
     can_inventory INTEGER NOT NULL DEFAULT 0,
     can_roasting INTEGER NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1,
+    deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
@@ -273,13 +298,15 @@ async function ensureStaffPermissionColumns(db: D1Database): Promise<void> {
     ["can_finance", "ALTER TABLE staff ADD COLUMN can_finance INTEGER NOT NULL DEFAULT 0"],
     ["can_inventory", "ALTER TABLE staff ADD COLUMN can_inventory INTEGER NOT NULL DEFAULT 0"],
     ["can_roasting", "ALTER TABLE staff ADD COLUMN can_roasting INTEGER NOT NULL DEFAULT 0"],
+    ["deleted_at", "ALTER TABLE staff ADD COLUMN deleted_at TEXT"],
   ].filter(([name]) => !names.has(name));
+  const addedPermissionColumn = missing.some(([name]) => name.startsWith("can_"));
 
   for (const [, statement] of missing) {
     await db.prepare(statement).run();
   }
 
-  if (missing.length > 0) {
+  if (addedPermissionColumn) {
     await db
       .prepare(
         `UPDATE staff

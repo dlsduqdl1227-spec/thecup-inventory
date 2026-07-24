@@ -17,6 +17,7 @@ export const staff = sqliteTable("staff", {
   canInventory: integer("can_inventory", { mode: "boolean" }).notNull().default(false),
   canRoasting: integer("can_roasting", { mode: "boolean" }).notNull().default(false),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
+  deletedAt: text("deleted_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

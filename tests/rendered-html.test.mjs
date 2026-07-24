@@ -37,8 +37,19 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /로스팅\(원두\)/);
   assert.match(app, /새 품목 직접 입고/);
   assert.match(app, /create_item_with_stock/);
+  assert.match(app, /재고 작업 선택/);
+  assert.match(app, /재고 현황/);
+  assert.match(app, /formatInventoryAmount/);
+  assert.match(app, /quantity \/ 1000/);
+  assert.match(app, /← 이전/);
+  assert.match(app, />홈</);
+  assert.match(app, /시간강사\(남부\)/);
+  assert.match(app, /직원 삭제/);
   assert.doesNotMatch(app, /더컵 볶은 원두/);
   assert.match(app, /title="매출 내역"/);
+  assert.match(app, /2022년부터 현재까지/);
+  assert.match(app, /CSV 2022–2026 이관 완료/);
+  assert.match(app, /해당 연도의 12개월을 기준으로 계산했습니다/);
   assert.match(app, /\{quarter\}분기/);
   assert.doesNotMatch(app, /숫자가 말해주는 오늘의 운영|Q\{quarter\}/);
   assert.match(app, /직원 전용/);
@@ -50,6 +61,9 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(styles, /\.brand-lockup/);
   assert.match(styles, /\.brand-logo-coffee img/);
   assert.match(styles, /Pretendard Variable/);
+  assert.match(styles, /\.inventory-tabs/);
+  assert.match(styles, /\.mobile-history-nav/);
+  assert.match(styles, /\.staff-delete-button/);
   assert.doesNotMatch(styles, /#17483b|#d9613e|#f3f0e7/i);
   assert.doesNotMatch(`${page}\n${layout}\n${app}`, /codex-preview|Your site is taking shape|SkeletonPreview/i);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
@@ -88,11 +102,12 @@ test("migration covers identity, finance, inventory, receipts and roasting", asy
 });
 
 test("guards critical identity, date and persistence edge cases", async () => {
-  const [http, database, auth, bootstrap, staff, finance, inventory, milkPurchase, receiptStorage, roasting, permissionsMigration, legacyMigration, dashboard] = await Promise.all([
+  const [http, database, auth, bootstrap, login, staff, finance, inventory, milkPurchase, receiptStorage, roasting, permissionsMigration, legacyMigration, deletionMigration, dashboard] = await Promise.all([
     readFile(new URL("lib/http.ts", root), "utf8"),
     readFile(new URL("lib/db.ts", root), "utf8"),
     readFile(new URL("lib/auth.ts", root), "utf8"),
     readFile(new URL("app/api/auth/bootstrap/route.ts", root), "utf8"),
+    readFile(new URL("app/api/auth/login/route.ts", root), "utf8"),
     readFile(new URL("app/api/staff/route.ts", root), "utf8"),
     readFile(new URL("app/api/finance/route.ts", root), "utf8"),
     readFile(new URL("app/api/inventory/route.ts", root), "utf8"),
@@ -101,6 +116,7 @@ test("guards critical identity, date and persistence edge cases", async () => {
     readFile(new URL("app/api/roasting/route.ts", root), "utf8"),
     readFile(new URL("drizzle/0001_melted_scalphunter.sql", root), "utf8"),
     readFile(new URL("drizzle/0005_clean_red_skull.sql", root), "utf8"),
+    readFile(new URL("drizzle/0006_nappy_winter_soldier.sql", root), "utf8"),
     readFile(new URL("app/api/dashboard/route.ts", root), "utf8"),
   ]);
 
@@ -109,8 +125,15 @@ test("guards critical identity, date and persistence edge cases", async () => {
   assert.match(database, /CREATE TRIGGER IF NOT EXISTS inventory_nonnegative_update/);
   assert.match(database, /CREATE TABLE IF NOT EXISTS receipt_files/);
   assert.match(auth, /requirePermission/);
+  assert.match(auth, /s\.deleted_at IS NULL/);
   assert.match(bootstrap, /WHERE NOT EXISTS \(SELECT 1 FROM staff\)/);
+  assert.match(login, /deleted_at IS NULL/);
   assert.match(staff, /마지막 활성 관리자의 권한/);
+  assert.match(staff, /export async function DELETE/);
+  assert.match(staff, /현재 로그인한 관리자 본인의 계정은 삭제할 수 없습니다/);
+  assert.match(staff, /마지막 활성 관리자 계정은 삭제할 수 없습니다/);
+  assert.match(staff, /DELETE FROM sessions WHERE staff_id/);
+  assert.match(staff, /phone_hash = 'deleted:'/);
   assert.match(staff, /can_finance END AS canFinance/);
   assert.match(finance, /requirePermission\(request, "finance"\)/);
   assert.match(inventory, /requirePermission\(request, "inventory"\)/);
@@ -126,8 +149,37 @@ test("guards critical identity, date and persistence edge cases", async () => {
   assert.match(permissionsMigration, /ADD `can_finance`/);
   assert.match(permissionsMigration, /WHERE `role` IN \('admin', 'employee'\)/);
   assert.match(legacyMigration, /ADD `legacy_key`/);
+  assert.match(deletionMigration, /ALTER TABLE `staff` ADD `deleted_at` text/);
+  assert.match(database, /ALTER TABLE staff ADD COLUMN deleted_at TEXT/);
   assert.match(database, /readLegacyInventoryEntries/);
   assert.match(database, /summarizeLegacyInventory/);
+  const historicalSeeds = [...database.matchAll(
+    /\{ year: (2022|2023), month: (\d+), revenue: (\d+), expense: (\d+) \}/g,
+  )].map((match) => ({
+    year: Number(match[1]),
+    month: Number(match[2]),
+    revenue: Number(match[3]),
+    expense: Number(match[4]),
+  }));
+  assert.equal(historicalSeeds.length, 24);
+  assert.deepEqual(
+    historicalSeeds
+      .filter((row) => row.year === 2022)
+      .reduce((total, row) => ({
+        revenue: total.revenue + row.revenue,
+        expense: total.expense + row.expense,
+      }), { revenue: 0, expense: 0 }),
+    { revenue: 83774760, expense: 6125710 },
+  );
+  assert.deepEqual(
+    historicalSeeds
+      .filter((row) => row.year === 2023)
+      .reduce((total, row) => ({
+        revenue: total.revenue + row.revenue,
+        expense: total.expense + row.expense,
+      }), { revenue: 0, expense: 0 }),
+    { revenue: 144425361, expense: 9044186 },
+  );
   assert.match(dashboard, /legacyInventoryCount/);
   assert.match(dashboard, /기존 재고 기록/);
   assert.match(dashboard, /소비기한/);

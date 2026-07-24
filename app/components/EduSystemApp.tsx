@@ -137,11 +137,12 @@ const won = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 0,
 });
 const number = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 });
+const quantityNumber = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 2 });
 
 const roleLabel: Record<Role, string> = {
   admin: "관리자",
   employee: "정규직원",
-  instructor: "시간강사",
+  instructor: "시간강사(남부)",
 };
 
 const categoryLabel: Record<InventoryItem["category"], string> = {
@@ -209,6 +210,7 @@ export function EduSystemApp() {
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ kind: "ok" | "error"; message: string } | null>(null);
+  const [navigationHistory, setNavigationHistory] = useState<TabKey[]>([]);
 
   const loadAuth = useCallback(async () => {
     try {
@@ -216,7 +218,10 @@ export function EduSystemApp() {
         "/api/auth/status",
       );
       setAuthState({ loading: false, ...status });
-      if (status.user) setActiveTab(initialTab(status.user));
+      if (status.user) {
+        setNavigationHistory([]);
+        setActiveTab(initialTab(status.user));
+      }
     } catch (error) {
       setAuthState({ loading: false, bootstrapRequired: false, user: null });
       setToast({ kind: "error", message: errorMessage(error) });
@@ -261,6 +266,7 @@ export function EduSystemApp() {
         body: JSON.stringify(body),
       });
       setAuthState({ loading: false, bootstrapRequired: false, user: result.user });
+      setNavigationHistory([]);
       setActiveTab(initialTab(result.user));
       setToast({ kind: "ok", message: `${result.user.name}님, 환영합니다.` });
     } catch (error) {
@@ -274,6 +280,7 @@ export function EduSystemApp() {
     setBusy(true);
     try {
       await requestJson("/api/auth/logout", { method: "POST" });
+      setNavigationHistory([]);
       setData(null);
       setAuthState((current) => ({ ...current, user: null }));
     } catch (error) {
@@ -308,19 +315,41 @@ export function EduSystemApp() {
 
   const user = authState.user;
   const allowedNav = allowedNavigation(user);
+  const homeTab = allowedNav.find((item) => item.key === "dashboard")?.key ?? allowedNav[0]?.key ?? "record";
+
+  function navigateTo(nextTab: TabKey) {
+    if (nextTab === activeTab) return;
+    setNavigationHistory((current) => [...current, activeTab]);
+    setActiveTab(nextTab);
+  }
+
+  function goBack() {
+    const previousTab = navigationHistory.at(-1);
+    if (!previousTab) return;
+    setNavigationHistory((current) => current.slice(0, -1));
+    setActiveTab(previousTab);
+  }
+
+  function goHome() {
+    navigateTo(homeTab);
+  }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <BrandMark />
         <div className="sidebar-rule" />
+        <nav className="sidebar-actions" aria-label="화면 이동">
+          <button type="button" onClick={goBack} disabled={navigationHistory.length === 0}>← 이전</button>
+          <button type="button" onClick={goHome} disabled={activeTab === homeTab}>홈</button>
+        </nav>
         <nav className="side-nav" aria-label="주요 메뉴">
           {allowedNav.map((item, index) => (
             <button
               type="button"
               key={item.key}
               className={activeTab === item.key ? "nav-item active" : "nav-item"}
-              onClick={() => setActiveTab(item.key)}
+              onClick={() => navigateTo(item.key)}
             >
               <span>{String(index + 1).padStart(2, "0")}</span>
               {item.label}
@@ -346,6 +375,10 @@ export function EduSystemApp() {
             <strong>{user.name}</strong>
             <span>{roleLabel[user.role]}</span>
           </div>
+          <nav className="mobile-history-nav" aria-label="화면 이동">
+            <button type="button" onClick={goBack} disabled={navigationHistory.length === 0}>← 이전</button>
+            <button type="button" onClick={goHome} disabled={activeTab === homeTab}>홈</button>
+          </nav>
         </header>
 
         {!data ? (
@@ -381,7 +414,7 @@ export function EduSystemApp() {
               <RoastingView user={user} notify={setToast} />
             )}
             {activeTab === "staff" && (
-              <StaffView notify={setToast} />
+              <StaffView currentUserId={user.id} notify={setToast} />
             )}
           </>
         )}
@@ -393,7 +426,7 @@ export function EduSystemApp() {
             type="button"
             key={item.key}
             className={activeTab === item.key ? "active" : ""}
-            onClick={() => setActiveTab(item.key)}
+            onClick={() => navigateTo(item.key)}
           >
             {item.short}
           </button>
@@ -518,15 +551,17 @@ function DashboardView({ data }: { data: DashboardData }) {
   const latestYear = availableYears[0] ?? new Date().getFullYear();
   const [year, setYear] = useState(latestYear);
   const rows = data.finance.filter((row) => row.year === year);
-  const activeRows = rows.filter((row) => row.revenue !== 0 || row.expense !== 0);
-  const totalRevenue = sum(activeRows.map((row) => row.revenue));
-  const totalProfit = sum(activeRows.map((row) => row.profit));
+  const includedRows = year === latestYear
+    ? rows.filter((row) => row.revenue !== 0 || row.expense !== 0)
+    : rows;
+  const totalRevenue = sum(includedRows.map((row) => row.revenue));
+  const totalProfit = sum(includedRows.map((row) => row.profit));
   const margin = totalRevenue ? (totalProfit / totalRevenue) * 100 : 0;
-  const lastMonth = Math.max(0, ...activeRows.map((row) => row.month));
+  const lastMonth = Math.max(0, ...includedRows.map((row) => row.month));
   const priorRows = data.finance.filter((row) => row.year === year - 1 && row.month <= lastMonth);
   const priorRevenue = sum(priorRows.map((row) => row.revenue));
   const yoy = priorRevenue ? ((totalRevenue - priorRevenue) / priorRevenue) * 100 : null;
-  const best = activeRows.reduce<FinanceMonth | null>(
+  const best = includedRows.reduce<FinanceMonth | null>(
     (current, row) => (!current || row.revenue > current.revenue ? row : current),
     null,
   );
@@ -537,7 +572,7 @@ function DashboardView({ data }: { data: DashboardData }) {
       <PageHeader
         eyebrow="매출 현황"
         title="매출 내역"
-        description="2024년부터 현재까지의 월별 매출, 비용과 순익을 확인합니다."
+        description="2022년부터 현재까지의 월별 매출, 비용과 순익을 확인합니다."
         action={
           <select value={year} onChange={(event) => setYear(Number(event.target.value))} aria-label="분석 연도">
             {availableYears.map((value) => <option key={value} value={value}>{value}년</option>)}
@@ -546,7 +581,7 @@ function DashboardView({ data }: { data: DashboardData }) {
       />
 
       <div className="kpi-grid">
-        <KpiCard label={`${year} 누적 매출`} value={won.format(totalRevenue)} meta={`${activeRows.length}개월 집계`} tone="dark" />
+        <KpiCard label={`${year} 누적 매출`} value={won.format(totalRevenue)} meta={`${includedRows.length}개월 집계`} tone="dark" />
         <KpiCard label="누적 순익" value={won.format(totalProfit)} meta={`순익률 ${margin.toFixed(1)}%`} />
         <KpiCard
           label="전년 동기 대비"
@@ -587,8 +622,8 @@ function DashboardView({ data }: { data: DashboardData }) {
             </div>
             <div className="signal">
               <span>월평균 매출</span>
-              <strong>{activeRows.length ? won.format(totalRevenue / activeRows.length) : "—"}</strong>
-              <p>실제 입력이 있는 월만 평균에 포함했습니다.</p>
+              <strong>{includedRows.length ? won.format(totalRevenue / includedRows.length) : "—"}</strong>
+              <p>{year === latestYear ? "실제 입력이 있는 월만 평균에 포함했습니다." : "해당 연도의 12개월을 기준으로 계산했습니다."}</p>
             </div>
             <div className="signal">
               <span>최근 영수증 반영</span>
@@ -602,7 +637,9 @@ function DashboardView({ data }: { data: DashboardData }) {
       <div className="quarter-grid">
         {[1, 2, 3, 4].map((quarter) => {
           const quarterRows = rows.filter((row) => Math.ceil(row.month / 3) === quarter);
-          const activeQuarter = quarterRows.filter((row) => row.revenue || row.expense);
+          const activeQuarter = year === latestYear
+            ? quarterRows.filter((row) => row.revenue || row.expense)
+            : quarterRows;
           const average = activeQuarter.length ? sum(activeQuarter.map((row) => row.revenue)) / activeQuarter.length : 0;
           return (
             <article className="quarter-card" key={quarter}>
@@ -820,8 +857,31 @@ function InventoryView({
   notify: (toast: { kind: "ok" | "error"; message: string }) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [inventoryTab, setInventoryTab] = useState<"overview" | "movement" | "roasting" | "new" | "history">("overview");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "green" | "beans" | "milk" | "other">("all");
+  const [movementItemId, setMovementItemId] = useState(data.inventory[0]?.id ?? 0);
   const greenItems = data.inventory.filter((item) => item.category === "green");
   const roastedItems = data.inventory.filter((item) => item.category === "roasted");
+  const movementItem = data.inventory.find((item) => item.id === movementItemId) ?? data.inventory[0];
+  const visibleItems = data.inventory.filter((item) => {
+    if (categoryFilter === "all") return true;
+    if (categoryFilter === "beans") return item.category === "roasted" || item.category === "gusto";
+    return item.category === categoryFilter;
+  });
+  const inventoryTabs = [
+    { key: "overview", label: "재고 현황" },
+    { key: "movement", label: "입출고" },
+    { key: "roasting", label: "로스팅" },
+    { key: "new", label: "새 품목" },
+    { key: "history", label: "기록" },
+  ] as const;
+  const categoryFilters = [
+    { key: "all", label: "전체" },
+    { key: "green", label: "생두" },
+    { key: "beans", label: "원두" },
+    { key: "milk", label: "우유" },
+    { key: "other", label: "기타" },
+  ] as const;
 
   async function submitJson(event: FormEvent<HTMLFormElement>, endpoint: string, success: string) {
     event.preventDefault();
@@ -849,50 +909,85 @@ function InventoryView({
       <PageHeader
         eyebrow="재고 현황"
         title="재고 관리"
-        description="생두 로트, 로스팅(원두), 구스토 원두와 우유의 입고·사용 기록을 관리합니다."
+        description="필요한 작업만 탭으로 열어 현재 재고, 입출고, 로스팅과 기록을 확인합니다."
       />
 
-      {data.legacyInventoryCount > 0 && (
-        <div className="legacy-inventory-note">
-          <div><span>기존 재고 기록</span><strong>{number.format(data.legacyInventoryCount)}건</strong></div>
-          <p>기존 더컵인벤토리의 입고·로스팅 기록과 현재 잔량을 그대로 연결했습니다.</p>
-        </div>
-      )}
-
-      <div className="inventory-grid">
-        {data.inventory.map((item) => (
-          <article className={item.lowStock ? "inventory-card low" : "inventory-card"} key={item.id}>
-            <span className="category-tag">{categoryLabel[item.category]}</span>
-            <h3>{item.name}</h3>
-            {(item.lot || item.process || item.expiryDate) && (
-              <div className="inventory-meta">
-                {item.lot && <span>LOT {item.lot}</span>}
-                {item.process && <span>{item.process}</span>}
-                {formatDateOnly(item.expiryDate) && (
-                  <span>소비기한 {formatDateOnly(item.expiryDate)}</span>
-                )}
-              </div>
-            )}
-            <strong>{number.format(item.quantity)}<small>{item.unit}</small></strong>
-            <div className="stock-meter"><span style={{ width: `${Math.min(100, item.reorderLevel ? (item.quantity / (item.reorderLevel * 2)) * 100 : 100)}%` }} /></div>
-            <p>최소 재고 {number.format(item.reorderLevel)}{item.unit}</p>
-          </article>
+      <div className="inventory-tabs" role="tablist" aria-label="재고 작업 선택">
+        {inventoryTabs.map((tab) => (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={inventoryTab === tab.key}
+            className={inventoryTab === tab.key ? "active" : ""}
+            key={tab.key}
+            onClick={() => setInventoryTab(tab.key)}
+          >
+            {tab.label}
+          </button>
         ))}
       </div>
 
-      <div className="three-panel-grid">
-        <article className="panel compact-form-panel">
-          <div className="form-title"><span className="step-number">01</span><div><h3>입출고 · 실사</h3><p>일반 재고 변동</p></div></div>
+      {inventoryTab === "overview" && (
+        <div role="tabpanel">
+          <div className="inventory-summary">
+            <div><span>전체 품목</span><strong>{data.inventory.length}<small>개</small></strong></div>
+            <div className={data.inventory.some((item) => item.lowStock) ? "attention" : ""}><span>확인 필요</span><strong>{data.inventory.filter((item) => item.lowStock).length}<small>개</small></strong></div>
+            <div><span>기존 기록</span><strong>{number.format(data.legacyInventoryCount)}<small>건</small></strong></div>
+          </div>
+          <div className="inventory-filter" role="group" aria-label="재고 분류 필터">
+            {categoryFilters.map((filter) => (
+              <button
+                type="button"
+                className={categoryFilter === filter.key ? "active" : ""}
+                key={filter.key}
+                onClick={() => setCategoryFilter(filter.key)}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+          <div className="inventory-grid">
+            {visibleItems.map((item) => {
+              const amount = formatInventoryAmount(item.quantity, item.unit);
+              const minimum = formatInventoryAmount(item.reorderLevel, item.unit);
+              return (
+                <article className={item.lowStock ? "inventory-card low" : "inventory-card"} key={item.id}>
+                  <div className="inventory-card-top">
+                    <span className="category-tag">{categoryLabel[item.category]}</span>
+                    <span className={item.lowStock ? "stock-status low" : "stock-status"}>{item.lowStock ? "확인 필요" : "정상"}</span>
+                  </div>
+                  <h3>{item.name}</h3>
+                  {(item.lot || item.process || item.expiryDate) && (
+                    <div className="inventory-meta">
+                      {item.lot && <span>LOT {item.lot}</span>}
+                      {item.process && <span>{item.process}</span>}
+                      {formatDateOnly(item.expiryDate) && <span>소비기한 {formatDateOnly(item.expiryDate)}</span>}
+                    </div>
+                  )}
+                  <strong>{amount.value}<small>{amount.unit}</small></strong>
+                  <div className="stock-meter"><span style={{ width: `${Math.min(100, item.reorderLevel ? (item.quantity / (item.reorderLevel * 2)) * 100 : 100)}%` }} /></div>
+                  <p>최소 재고 {minimum.value}{minimum.unit}</p>
+                </article>
+              );
+            })}
+          </div>
+          {data.legacyInventoryCount > 0 && <p className="inventory-source-note">기존 더컵인벤토리의 입고·로스팅 기록과 현재 잔량을 그대로 연결했습니다.</p>}
+        </div>
+      )}
+
+      {inventoryTab === "movement" && (
+        <article className="panel compact-form-panel inventory-workspace-panel" role="tabpanel">
+          <div className="form-title"><span className="step-number">01</span><div><h3>입출고 · 실사</h3><p>기존 품목의 입고, 사용 또는 현재 수량을 반영합니다.</p></div></div>
           <form onSubmit={(event) => submitJson(event, "/api/inventory", "재고 변동이 반영됐습니다.")}>
             <input type="hidden" name="action" value="movement" />
             <Field label="품목">
-              <select name="itemId" required>{data.inventory.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</select>
+              <select name="itemId" required value={movementItemId} onChange={(event) => setMovementItemId(Number(event.target.value))}>{data.inventory.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</select>
             </Field>
             <div className="two-columns">
               <Field label="작업">
                 <select name="movementType"><option value="in">입고</option><option value="out">사용/출고</option><option value="adjust">실사 수량으로 조정</option></select>
               </Field>
-              <Field label="수량">
+              <Field label={`수량 (${movementItem?.unit ?? "단위"})`}>
                 <input name="quantity" type="number" min="0.01" step="0.01" required />
               </Field>
             </div>
@@ -901,8 +996,10 @@ function InventoryView({
             <button className="secondary-button" disabled={busy}>재고 반영</button>
           </form>
         </article>
+      )}
 
-        <article className="panel compact-form-panel">
+      {inventoryTab === "roasting" && (
+        <article className="panel compact-form-panel inventory-workspace-panel" role="tabpanel">
           <div className="form-title"><span className="step-number">02</span><div><h3>로스팅 배치 등록</h3><p>생두 차감 · 로스팅(원두) 입고</p></div></div>
           <form onSubmit={(event) => submitJson(event, "/api/inventory/roast", "로스팅 배치 재고가 반영됐습니다.")}>
             <Field label="투입한 생두">
@@ -920,8 +1017,10 @@ function InventoryView({
             <button className="secondary-button" disabled={busy}>배치 재고 반영</button>
           </form>
         </article>
+      )}
 
-        <article className="panel compact-form-panel">
+      {inventoryTab === "new" && (
+        <article className="panel compact-form-panel inventory-workspace-panel" role="tabpanel">
           <div className="form-title"><span className="step-number">03</span><div><h3>새 품목 직접 입고</h3><p>목록에 없는 원두나 부자재를 바로 등록합니다.</p></div></div>
           <form onSubmit={(event) => submitJson(event, "/api/inventory", "새 품목과 입고 수량이 함께 반영됐습니다.")}>
             <input type="hidden" name="action" value="create_item_with_stock" />
@@ -948,12 +1047,14 @@ function InventoryView({
             <button className="secondary-button" disabled={busy}>품목 등록 및 입고</button>
           </form>
         </article>
-      </div>
+      )}
 
-      <article className="panel table-panel">
-        <div className="panel-heading"><div><span className="eyebrow">재고 장부</span><h3>최근 재고 기록</h3></div></div>
-        <MovementTable movements={data.movements} />
-      </article>
+      {inventoryTab === "history" && (
+        <article className="panel table-panel" role="tabpanel">
+          <div className="panel-heading"><div><span className="eyebrow">재고 장부</span><h3>최근 재고 기록</h3></div></div>
+          <MovementTable movements={data.movements} />
+        </article>
+      )}
     </section>
   );
 }
@@ -1019,7 +1120,7 @@ function FinanceView({
         <article className="panel table-panel finance-ledger">
           <div className="panel-heading">
             <div><span className="eyebrow">최근 장부</span><h3>최근 입력 내역</h3></div>
-            <span className="csv-badge">CSV 2024–2026 이관 완료</span>
+            <span className="csv-badge">CSV 2022–2026 이관 완료</span>
           </div>
           <div className="table-wrap">
             <table>
@@ -1420,13 +1521,16 @@ function RoastCurve({ profile }: { profile: RoastProfile }) {
 }
 
 function StaffView({
+  currentUserId,
   notify,
 }: {
+  currentUserId: number;
   notify: (toast: { kind: "ok" | "error"; message: string }) => void;
 }) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [audits, setAudits] = useState<AuditLog[]>([]);
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -1493,12 +1597,30 @@ function StaffView({
     }
   }
 
+  async function deleteStaff(member: StaffMember) {
+    if (!window.confirm(`${member.name} 직원을 삭제할까요?\n기존 운영 기록의 작성자 이름은 유지됩니다.`)) return;
+    setDeletingId(member.id);
+    try {
+      await requestJson("/api/staff", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: member.id }),
+      });
+      await load();
+      notify({ kind: "ok", message: `${member.name} 직원이 삭제됐습니다.` });
+    } catch (error) {
+      notify({ kind: "error", message: errorMessage(error) });
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <section className="page-section">
       <PageHeader
         eyebrow="권한 관리"
         title="직원 권한 관리"
-        description="수업 사용 기록은 모든 직원에게 제공하고, 매출·재고·로스팅 메뉴는 직원별로 선택합니다."
+        description="직원 구분과 메뉴 권한을 수정하거나 더 이상 사용하지 않는 계정을 안전하게 삭제합니다."
       />
       <div className="staff-layout">
         <article className="panel staff-form">
@@ -1508,7 +1630,7 @@ function StaffView({
             <Field label="휴대폰 번호"><input name="phone" type="tel" inputMode="numeric" placeholder="010-0000-0000" required /></Field>
             <Field label="직원 구분">
               <select name="role" defaultValue="instructor">
-                <option value="instructor">시간강사</option>
+                <option value="instructor">시간강사(남부)</option>
                 <option value="employee">정규직원</option>
                 <option value="admin">관리자 · 모든 메뉴</option>
               </select>
@@ -1548,7 +1670,7 @@ function StaffView({
                 </div>
                 <div className="staff-access-controls">
                   <select value={member.role} onChange={(event) => void updateStaff(member, { role: event.target.value as Role })} aria-label={`${member.name} 직원 구분`}>
-                    <option value="admin">관리자</option><option value="employee">정규직원</option><option value="instructor">시간강사</option>
+                    <option value="admin">관리자</option><option value="employee">정규직원</option><option value="instructor">시간강사(남부)</option>
                   </select>
                   <div className="staff-permissions" aria-label={`${member.name} 메뉴 권한`}>
                     {permissionOptions.map((permission) => (
@@ -1563,6 +1685,17 @@ function StaffView({
                       </label>
                     ))}
                   </div>
+                </div>
+                <div className="staff-row-actions">
+                  <span>변경 내용은 즉시 저장됩니다.</span>
+                  <button
+                    type="button"
+                    className="staff-delete-button"
+                    disabled={member.id === currentUserId || deletingId === member.id}
+                    onClick={() => void deleteStaff(member)}
+                  >
+                    {member.id === currentUserId ? "현재 계정" : deletingId === member.id ? "삭제 중…" : "직원 삭제"}
+                  </button>
                 </div>
               </div>
             ))}
@@ -1592,7 +1725,7 @@ function MovementTable({ movements }: { movements: Movement[] }) {
               <td>{movement.movementDate}</td>
               <td><strong>{movement.itemName}</strong></td>
               <td><span className={`movement-badge ${movement.movementType}`}>{movementLabel[movement.movementType] ?? movement.movementType}</span></td>
-              <td className={movement.quantity < 0 ? "expense" : "income"}>{movement.quantity > 0 ? "+" : ""}{number.format(movement.quantity)}{movement.unit}</td>
+              <td className={movement.quantity < 0 ? "expense" : "income"}>{formatSignedInventoryAmount(movement.quantity, movement.unit)}</td>
               <td>{movement.className || movement.note || "—"}</td>
               <td>{movement.costAmount ? won.format(movement.costAmount) : "—"}</td>
               <td>{movement.createdByName}</td>
@@ -1741,7 +1874,21 @@ function sum(values: number[]): number {
 }
 
 function inventoryOptionLabel(item: InventoryItem): string {
-  return item.lot ? `${item.name} · LOT ${item.lot}` : item.name;
+  const amount = formatInventoryAmount(item.quantity, item.unit);
+  const name = item.lot ? `${item.name} · LOT ${item.lot}` : item.name;
+  return `${name} · 현재 ${amount.value}${amount.unit}`;
+}
+
+function formatInventoryAmount(quantity: number, unit: string): { value: string; unit: string } {
+  if (unit.trim().toLowerCase() === "g" && Math.abs(quantity) >= 1000) {
+    return { value: quantityNumber.format(quantity / 1000), unit: "kg" };
+  }
+  return { value: quantityNumber.format(quantity), unit };
+}
+
+function formatSignedInventoryAmount(quantity: number, unit: string): string {
+  const amount = formatInventoryAmount(quantity, unit);
+  return `${quantity > 0 ? "+" : ""}${amount.value}${amount.unit}`;
 }
 
 function formatDateOnly(value: string | null | undefined): string | null {
@@ -1781,6 +1928,7 @@ function auditLabel(action: string): string {
     login: "로그인",
     create_staff: "직원 등록",
     update_staff: "권한 변경",
+    delete_staff: "직원 삭제",
     create_finance: "장부 입력",
     create_item: "품목 추가",
     create_item_with_stock: "품목 등록 · 입고",
