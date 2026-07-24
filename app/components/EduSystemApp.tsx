@@ -93,7 +93,7 @@ type RoastProfile = {
   process: string;
   batchWeight: number;
   chargeTemp: number;
-  yellowingSeconds: number;
+  turningPointSeconds: number;
   firstCrackSeconds: number;
   dropTemp: number;
   totalSeconds: number;
@@ -104,8 +104,7 @@ type RoastProfile = {
   createdByName: string;
   points: RoastPoint[];
   ror: {
-    drying: number;
-    maillard: number;
+    turningToCrack: number;
     development: number;
   };
 };
@@ -1519,18 +1518,16 @@ function RoastingView({
                   </div>
                 )}
               </div>
+              <RoastFollowGuide profile={selected} />
               <RoastCurve profile={selected} />
               <div className="roast-metrics">
-                <Metric label="투입 온도" value={`${selected.chargeTemp}℃`} />
-                <Metric label="옐로잉" value={formatTime(selected.yellowingSeconds)} />
-                <Metric label="1차 크랙" value={formatTime(selected.firstCrackSeconds)} />
-                <Metric label="배출" value={`${formatTime(selected.totalSeconds)} · ${selected.dropTemp}℃`} />
+                <Metric label="배치 중량" value={`${number.format(selected.batchWeight)}kg`} />
+                <Metric label="전체 시간" value={formatTime(selected.totalSeconds)} />
                 <Metric label="디벨롭" value={`${formatTime(selected.developmentSeconds)} · ${selected.developmentRatio}%`} accent />
               </div>
               <div className="ror-grid">
-                <div><span>건조 구간 평균 ROR</span><strong>{selected.ror.drying}℃/min</strong></div>
-                <div><span>마이야르 평균 ROR</span><strong>{selected.ror.maillard}℃/min</strong></div>
-                <div><span>디벨롭 평균 ROR</span><strong>{selected.ror.development}℃/min</strong></div>
+                <div><span>터닝 → 1차 크랙 평균 ROR</span><strong>{selected.ror.turningToCrack}℃/분</strong><small>1분마다 올라간 평균 온도</small></div>
+                <div><span>1차 크랙 → 종료 평균 ROR</span><strong>{selected.ror.development}℃/분</strong><small>디벨롭 구간의 평균 온도 상승</small></div>
               </div>
               <div className="profile-notes">
                 <div><span>가스 운용</span><p>{selected.gasNotes || "기록 없음"}</p></div>
@@ -1546,6 +1543,42 @@ function RoastingView({
           {user.role === "admin" && <button className="primary-button small" onClick={() => setEditing("new")}>첫 프로파일 만들기</button>}
         </div>
       )}
+    </section>
+  );
+}
+
+function RoastFollowGuide({ profile }: { profile: RoastProfile }) {
+  const chargePoint = roastPointAt(profile.points, 0, { beanTemp: profile.chargeTemp, gasPressure: 0 });
+  const charge = { ...chargePoint, beanTemp: chargePoint.beanTemp > 0 ? chargePoint.beanTemp : profile.chargeTemp };
+  const turning = roastPointAt(profile.points, profile.turningPointSeconds, { beanTemp: 0, gasPressure: 0 });
+  const firstCrack = roastPointAt(profile.points, profile.firstCrackSeconds, { beanTemp: 0, gasPressure: 0 });
+  const finish = roastPointAt(profile.points, profile.totalSeconds, { beanTemp: profile.dropTemp, gasPressure: 0 });
+  const steps = [
+    { label: "투입", description: "예열한 로스터에 원두를 넣는 시작 시점", seconds: 0, point: charge },
+    { label: "터닝포인트", description: "온도가 가장 낮아졌다가 다시 오르기 시작하는 시점", seconds: profile.turningPointSeconds, point: turning },
+    { label: "1차 크랙 시작", description: "원두에서 첫 크랙 소리가 들리기 시작하는 시점", seconds: profile.firstCrackSeconds, point: firstCrack },
+    { label: "종료", description: "로스팅을 마치고 원두를 배출하는 시점", seconds: profile.totalSeconds, point: finish },
+  ];
+
+  return (
+    <section className="roast-follow-guide" aria-labelledby="roast-follow-title">
+      <div className="roast-follow-heading">
+        <div><span className="eyebrow">한눈에 따라하기</span><h3 id="roast-follow-title">이 순서대로 확인하세요</h3></div>
+        <p>시간이 되면 온도와 가스 압력을 맞추고 다음 단계로 진행합니다.</p>
+      </div>
+      <div className="roast-step-list">
+        {steps.map((step, index) => (
+          <article className="roast-step-card" key={step.label}>
+            <span className="roast-step-number">{String(index + 1).padStart(2, "0")}</span>
+            <div className="roast-step-copy"><h4>{step.label}</h4><p>{step.description}</p></div>
+            <dl>
+              <div><dt>시간</dt><dd>{formatTime(step.seconds)}</dd></div>
+              <div><dt>온도</dt><dd>{number.format(step.point.beanTemp)}℃</dd></div>
+              <div><dt>가스</dt><dd>{formatGasPressure(step.point.gasPressure)}</dd></div>
+            </dl>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }
@@ -1609,6 +1642,34 @@ function DurationInput({
   );
 }
 
+function MilestoneEditor({
+  index,
+  title,
+  description,
+  point,
+  onChange,
+}: {
+  index: string;
+  title: string;
+  description: string;
+  point: RoastPoint;
+  onChange: (field: keyof RoastPoint, value: number) => void;
+}) {
+  return (
+    <fieldset className="milestone-card">
+      <legend><span>{index}</span><strong>{title}</strong></legend>
+      <p>{description}</p>
+      <Field label="시간">
+        <DurationInput value={point.seconds} onChange={(value) => onChange("seconds", value)} ariaLabel={`${title} 시간`} />
+      </Field>
+      <div className="two-columns milestone-values">
+        <Field label="원두 온도"><div className="input-suffix"><input type="number" min="1" step="0.1" value={point.beanTemp} onChange={(event) => onChange("beanTemp", Number(event.target.value))} required /><span>℃</span></div></Field>
+        <Field label="가스 압력"><div className="input-suffix"><input type="number" min="0" max="5" step="0.1" value={point.gasPressure} onChange={(event) => onChange("gasPressure", Number(event.target.value))} required /><span>bar</span></div></Field>
+      </div>
+    </fieldset>
+  );
+}
+
 function RoastProfileForm({
   initial,
   onCancel,
@@ -1621,28 +1682,45 @@ function RoastProfileForm({
   notify: (toast: { kind: "ok" | "error"; message: string }) => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [points, setPoints] = useState<RoastPoint[]>(
-    initial?.points ?? [
-      { seconds: 0, beanTemp: 92, gasPressure: 1.5 },
-      { seconds: 120, beanTemp: 118, gasPressure: 1.5 },
-      { seconds: 300, beanTemp: 154, gasPressure: 1.2 },
-      { seconds: 480, beanTemp: 188, gasPressure: 0.8 },
-      { seconds: 600, beanTemp: 204, gasPressure: 0 },
-    ],
+  const sourcePoints = initial?.points ?? [];
+  const initialTurningSeconds = initial?.turningPointSeconds ?? 90;
+  const initialFirstCrackSeconds = initial?.firstCrackSeconds ?? 480;
+  const initialTotalSeconds = initial?.totalSeconds ?? 600;
+  const initialCharge = roastPointAt(sourcePoints, 0, { beanTemp: initial?.chargeTemp ?? 185, gasPressure: 1.5 });
+  const initialTurning = roastPointAt(sourcePoints, initialTurningSeconds, { beanTemp: 95, gasPressure: 1.5 });
+  const initialFirstCrack = roastPointAt(sourcePoints, initialFirstCrackSeconds, { beanTemp: 190, gasPressure: 1 });
+  const initialFinish = roastPointAt(sourcePoints, initialTotalSeconds, { beanTemp: initial?.dropTemp ?? 204, gasPressure: 0.8 });
+  const [chargeTemp, setChargeTemp] = useState(initial?.chargeTemp ?? initialCharge.beanTemp);
+  const [chargeGasPressure, setChargeGasPressure] = useState(initialCharge.gasPressure);
+  const [turningPoint, setTurningPoint] = useState<RoastPoint>({ seconds: initialTurningSeconds, ...initialTurning });
+  const [firstCrackPoint, setFirstCrackPoint] = useState<RoastPoint>({ seconds: initialFirstCrackSeconds, ...initialFirstCrack });
+  const [finishPoint, setFinishPoint] = useState<RoastPoint>({ seconds: initialTotalSeconds, ...initialFinish });
+  const [extraPoints, setExtraPoints] = useState<RoastPoint[]>(
+    sourcePoints.filter((point) => ![0, initialTurningSeconds, initialFirstCrackSeconds, initialTotalSeconds].includes(point.seconds)),
   );
-  const [yellowingSeconds, setYellowingSeconds] = useState(initial?.yellowingSeconds ?? 300);
-  const [firstCrackSeconds, setFirstCrackSeconds] = useState(initial?.firstCrackSeconds ?? 480);
-  const [totalSeconds, setTotalSeconds] = useState(initial?.totalSeconds ?? 600);
+  const milestoneSeconds = new Set([0, turningPoint.seconds, firstCrackPoint.seconds, finishPoint.seconds]);
+  const points = [
+    { seconds: 0, beanTemp: chargeTemp, gasPressure: chargeGasPressure },
+    turningPoint,
+    firstCrackPoint,
+    finishPoint,
+    ...extraPoints.filter((point) => point.seconds > 0 && point.seconds < finishPoint.seconds && !milestoneSeconds.has(point.seconds)),
+  ].sort((left, right) => left.seconds - right.seconds);
 
-  function updatePoint(index: number, field: keyof RoastPoint, value: number) {
-    setPoints((current) => current.map((point, pointIndex) => pointIndex === index ? { ...point, [field]: value } : point));
+  function updateExtraPoint(index: number, field: keyof RoastPoint, value: number) {
+    setExtraPoints((current) => current.map((point, pointIndex) => pointIndex === index ? { ...point, [field]: value } : point));
   }
 
   function addPoint() {
-    const last = points.at(-1) ?? { seconds: totalSeconds, beanTemp: 200, gasPressure: 0 };
-    const beforeLast = points.at(-2)?.seconds ?? 0;
-    const seconds = Math.round((beforeLast + last.seconds) / 2);
-    setPoints([...points.slice(0, -1), { seconds, beanTemp: last.beanTemp - 8, gasPressure: last.gasPressure }, last].sort((a, b) => a.seconds - b.seconds));
+    const gaps = points.slice(0, -1).map((point, index) => ({
+      start: point.seconds,
+      end: points[index + 1].seconds,
+    }));
+    const largestGap = gaps.sort((left, right) => (right.end - right.start) - (left.end - left.start))[0];
+    if (!largestGap || largestGap.end - largestGap.start < 2) return;
+    const seconds = Math.round((largestGap.start + largestGap.end) / 2);
+    const estimate = interpolateRoastPoint(points, seconds);
+    setExtraPoints((current) => [...current, { seconds, ...estimate }].sort((left, right) => left.seconds - right.seconds));
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -1653,9 +1731,11 @@ function RoastProfileForm({
       const body = {
         ...values,
         id: initial?.id,
-        yellowingSeconds,
-        firstCrackSeconds,
-        totalSeconds,
+        chargeTemp,
+        turningPointSeconds: turningPoint.seconds,
+        firstCrackSeconds: firstCrackPoint.seconds,
+        totalSeconds: finishPoint.seconds,
+        dropTemp: finishPoint.beanTemp,
         points,
       };
       await requestJson("/api/roasting", {
@@ -1676,12 +1756,12 @@ function RoastProfileForm({
       <PageHeader
         eyebrow="프로파일 작성"
         title={initial ? "로스팅 프로파일 수정" : "새 로스팅 프로파일"}
-        description="분·초 단위 시간과 bar 기준 가스 압력을 기록하면 구간별 ROR과 디벨롭 비율이 자동 계산됩니다."
+        description="주요 시점만 한 번 입력하면 온도·가스 포인트와 그래프가 자동으로 완성됩니다."
         action={<button className="ghost-button" onClick={onCancel}>목록으로</button>}
       />
       <form className="panel roast-form" onSubmit={submit}>
         <div className="roast-form-section">
-          <span className="section-index">01 / 기본 정보</span>
+          <span className="section-index">01 / 원두와 투입 조건</span>
           <div className="three-columns">
             <Field label="원두명"><input name="beanName" defaultValue={initial?.beanName} required /></Field>
             <Field label="산지"><input name="origin" defaultValue={initial?.origin} placeholder="Ethiopia Guji" /></Field>
@@ -1689,55 +1769,80 @@ function RoastProfileForm({
           </div>
           <div className="three-columns">
             <Field label="배치 중량 (kg)"><input name="batchWeight" type="number" min="0.01" step="0.01" defaultValue={initial?.batchWeight ?? 1} required /></Field>
-            <Field label="투입 온도 (℃)"><input name="chargeTemp" type="number" min="1" step="0.1" defaultValue={initial?.chargeTemp ?? 185} required /></Field>
-            <Field label="배출 온도 (℃)"><input name="dropTemp" type="number" min="1" step="0.1" defaultValue={initial?.dropTemp ?? 204} required /></Field>
+            <Field label="투입 온도"><div className="input-suffix"><input name="chargeTemp" type="number" min="1" step="0.1" value={chargeTemp} onChange={(event) => setChargeTemp(Number(event.target.value))} required /><span>℃</span></div></Field>
+            <Field label="투입 가스 압력"><div className="input-suffix"><input type="number" min="0" max="5" step="0.1" value={chargeGasPressure} onChange={(event) => setChargeGasPressure(Number(event.target.value))} required /><span>bar</span></div></Field>
           </div>
         </div>
         <div className="roast-form-section">
-          <span className="section-index">02 / 주요 시점</span>
-          <div className="three-columns">
-            <Field label="옐로잉 시작">
-              <DurationInput name="yellowingSeconds" value={yellowingSeconds} onChange={setYellowingSeconds} ariaLabel="옐로잉 시작" />
-            </Field>
-            <Field label="1차 크랙 시작">
-              <DurationInput name="firstCrackSeconds" value={firstCrackSeconds} onChange={setFirstCrackSeconds} ariaLabel="1차 크랙 시작" />
-            </Field>
-            <Field label="배출 / 총 시간">
-              <DurationInput
-                name="totalSeconds"
-                value={totalSeconds}
-                onChange={(next) => {
-                  setTotalSeconds(next);
-                  setPoints((current) => current.map((point, index) => index === current.length - 1 ? { ...point, seconds: next } : point));
-                }}
-                ariaLabel="배출 총 시간"
-              />
-            </Field>
+          <div className="section-heading milestone-heading">
+            <div><span className="section-index">02 / 주요 시점</span><p>시간·온도·가스를 이곳에 한 번만 입력하세요. 아래 포인트에 자동 반영됩니다.</p></div>
+          </div>
+          <div className="milestone-grid">
+            <MilestoneEditor
+              index="01"
+              title="터닝포인트"
+              description="온도가 가장 낮아졌다가 다시 오르는 시점"
+              point={turningPoint}
+              onChange={(field, value) => setTurningPoint((current) => ({ ...current, [field]: value }))}
+            />
+            <MilestoneEditor
+              index="02"
+              title="1차 크랙 시작"
+              description="원두에서 첫 크랙 소리가 들리는 시점"
+              point={firstCrackPoint}
+              onChange={(field, value) => setFirstCrackPoint((current) => ({ ...current, [field]: value }))}
+            />
+            <MilestoneEditor
+              index="03"
+              title="종료"
+              description="로스팅을 마치고 원두를 배출하는 시점"
+              point={finishPoint}
+              onChange={(field, value) => setFinishPoint((current) => ({ ...current, [field]: value }))}
+            />
           </div>
         </div>
         <div className="roast-form-section">
-          <div className="section-heading"><span className="section-index">03 / 온도 · 가스 포인트</span><button type="button" className="ghost-button" onClick={addPoint}>포인트 추가</button></div>
+          <div className="section-heading auto-points-heading">
+            <div><span className="section-index">03 / 자동 완성된 로스팅 흐름</span><p>주요 시점은 자동으로 들어갑니다. 더 자세한 기록이 필요할 때만 세부 포인트를 추가하세요.</p></div>
+            <button type="button" className="ghost-button" onClick={addPoint}>세부 포인트 추가</button>
+          </div>
           <div className="point-table">
-            <div className="point-row header"><span>시간</span><span>원두 온도(℃)</span><span>가스 압력(bar)</span><span /></div>
+            <div className="point-row header"><span>구간</span><span>시간</span><span>원두 온도(℃)</span><span>가스 압력(bar)</span><span /></div>
             {points.map((point, index) => (
               <div className="point-row" key={`${index}-${point.seconds}`}>
+                {(() => {
+                  const automaticLabel = point.seconds === 0
+                    ? "투입"
+                    : point.seconds === turningPoint.seconds
+                      ? "터닝포인트"
+                      : point.seconds === firstCrackPoint.seconds
+                        ? "1차 크랙"
+                        : point.seconds === finishPoint.seconds
+                          ? "종료"
+                          : null;
+                  const extraIndex = extraPoints.indexOf(point);
+                  const automatic = automaticLabel !== null;
+                  return <>
+                <div className={automatic ? "point-kind automatic" : "point-kind"}><strong>{automaticLabel ?? "세부 포인트"}</strong><small>{automatic ? "주요 시점에서 자동 반영" : "선택 입력"}</small></div>
                 <DurationInput
                   value={point.seconds}
-                  disabled={index === 0 || index === points.length - 1}
-                  onChange={(value) => updatePoint(index, "seconds", value)}
+                  disabled={automatic}
+                  onChange={(value) => updateExtraPoint(extraIndex, "seconds", value)}
                   ariaLabel={`${index + 1}번째 포인트 시간`}
                   compact
                 />
                 <label className="point-value">
                   <span className="point-cell-label">원두 온도(℃)</span>
-                  <input type="number" min="0" step="0.1" value={point.beanTemp} onChange={(event) => updatePoint(index, "beanTemp", Number(event.target.value))} aria-label={`${index + 1}번째 포인트 온도`} />
+                  <input type="number" min="0" step="0.1" value={point.beanTemp} disabled={automatic} onChange={(event) => updateExtraPoint(extraIndex, "beanTemp", Number(event.target.value))} aria-label={`${index + 1}번째 포인트 온도`} />
                 </label>
                 <label className="point-value bar-input">
                   <span className="point-cell-label">가스 압력(bar)</span>
-                  <input type="number" min="0" max="5" step="0.1" value={point.gasPressure} onChange={(event) => updatePoint(index, "gasPressure", Number(event.target.value))} aria-label={`${index + 1}번째 포인트 가스 압력`} />
+                  <input type="number" min="0" max="5" step="0.1" value={point.gasPressure} disabled={automatic} onChange={(event) => updateExtraPoint(extraIndex, "gasPressure", Number(event.target.value))} aria-label={`${index + 1}번째 포인트 가스 압력`} />
                   <span className="bar-unit">bar</span>
                 </label>
-                <button type="button" className="remove-point" disabled={points.length <= 3 || index === 0 || index === points.length - 1} onClick={() => setPoints(points.filter((_, pointIndex) => pointIndex !== index))}>삭제</button>
+                <button type="button" className="remove-point" disabled={automatic} onClick={() => setExtraPoints((current) => current.filter((_, pointIndex) => pointIndex !== extraIndex))}>{automatic ? "자동" : "삭제"}</button>
+                  </>;
+                })()}
               </div>
             ))}
           </div>
@@ -1745,7 +1850,7 @@ function RoastProfileForm({
         <div className="roast-form-section">
           <span className="section-index">04 / 따라 하기 노트</span>
           <div className="two-columns">
-            <Field label="가스 운용 메모"><textarea name="gasNotes" rows={5} defaultValue={initial?.gasNotes} placeholder="예: 투입 1.5bar, 옐로잉 1.2bar, 1차 크랙 직전 0.8bar" /></Field>
+            <Field label="가스 운용 메모"><textarea name="gasNotes" rows={5} defaultValue={initial?.gasNotes} placeholder="예: 터닝 후 1.2bar 유지, 1차 크랙 30초 전 1.0bar" /></Field>
             <Field label="컵 노트 · 주의사항"><textarea name="notes" rows={5} defaultValue={initial?.notes} placeholder="배출 기준, 향미, 다음 배치 보정 사항" /></Field>
           </div>
         </div>
@@ -1774,7 +1879,7 @@ function RoastCurve({ profile }: { profile: RoastProfile }) {
       context.scale(dpr, dpr);
       const width = rect.width;
       const height = 320;
-      const pad = { left: 46, right: 28, top: 28, bottom: 36 };
+      const pad = { left: 48, right: 54, top: 34, bottom: 40 };
       const chartWidth = width - pad.left - pad.right;
       const chartHeight = height - pad.top - pad.bottom;
       const temperatures = profile.points.map((point) => point.beanTemp);
@@ -1800,12 +1905,18 @@ function RoastCurve({ profile }: { profile: RoastProfile }) {
         context.lineTo(width - pad.right, gridY);
         context.stroke();
         const label = Math.round(maxTemp - ((maxTemp - minTemp) / 4) * index);
-        context.fillText(`${label}°`, 8, gridY + 4);
+        const gasLabel = gasScaleMax - ((gasScaleMax / 4) * index);
+        context.textAlign = "start";
+        context.fillText(`${label}℃`, 6, gridY + 4);
+        context.textAlign = "right";
+        context.fillText(`${Number(gasLabel.toFixed(1))}bar`, width - 5, gridY + 4);
       }
+      context.textAlign = "start";
 
       [
-        [profile.yellowingSeconds, "옐로잉"],
+        [profile.turningPointSeconds, "터닝"],
         [profile.firstCrackSeconds, "1차 크랙"],
+        [profile.totalSeconds, "종료"],
       ].forEach(([seconds, label]) => {
         const markerX = x(Number(seconds));
         context.strokeStyle = "#a6a6a6";
@@ -1816,8 +1927,11 @@ function RoastCurve({ profile }: { profile: RoastProfile }) {
         context.stroke();
         context.setLineDash([]);
         context.fillStyle = "#555555";
-        context.fillText(String(label), markerX + 5, pad.top + 12);
+        const isFinish = Number(seconds) === profile.totalSeconds;
+        context.textAlign = isFinish ? "right" : "start";
+        context.fillText(String(label), markerX + (isFinish ? -5 : 5), pad.top + 12);
       });
+      context.textAlign = "start";
 
       context.strokeStyle = "#777777";
       context.lineWidth = 2;
@@ -1867,13 +1981,14 @@ function RoastCurve({ profile }: { profile: RoastProfile }) {
 
   return (
     <div className="curve-wrap">
-      <div className="curve-legend"><span className="temp-line" />원두 온도 <span className="gas-line" />가스 압력(bar)</div>
+      <div className="curve-heading"><div><strong>온도와 가스 흐름</strong><span>왼쪽 축 ℃ · 오른쪽 축 bar</span></div><div className="curve-legend"><span className="temp-line" />원두 온도 <span className="gas-line" />가스 압력</div></div>
       <canvas ref={canvasRef} aria-label={`${profile.beanName} 로스팅 온도 및 가스 압력 그래프`} />
-      <div className="gas-schedule" aria-label="시간별 가스 압력">
+      <div className="chart-point-list" aria-label="기록된 온도와 가스 포인트">
         {profile.points.map((point) => (
           <div key={`${point.seconds}-${point.gasPressure}`}>
             <span>{formatTime(point.seconds)}</span>
-            <strong>{formatGasPressure(point.gasPressure)}</strong>
+            <strong>{number.format(point.beanTemp)}℃</strong>
+            <em>{formatGasPressure(point.gasPressure)}</em>
           </div>
         ))}
       </div>
@@ -2385,6 +2500,33 @@ function currentKoreanDate(): string {
   }).formatToParts(new Date());
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${values.year}-${values.month}-${values.day}`;
+}
+
+function roastPointAt(
+  points: RoastPoint[],
+  seconds: number,
+  fallback: Pick<RoastPoint, "beanTemp" | "gasPressure">,
+): Pick<RoastPoint, "beanTemp" | "gasPressure"> {
+  const exact = points.find((point) => point.seconds === seconds);
+  if (exact) return { beanTemp: exact.beanTemp, gasPressure: exact.gasPressure };
+  if (points.length < 2) return fallback;
+  return interpolateRoastPoint(points, seconds);
+}
+
+function interpolateRoastPoint(
+  points: RoastPoint[],
+  seconds: number,
+): Pick<RoastPoint, "beanTemp" | "gasPressure"> {
+  const ordered = [...points].sort((left, right) => left.seconds - right.seconds);
+  const before = [...ordered].reverse().find((point) => point.seconds < seconds);
+  const after = ordered.find((point) => point.seconds > seconds);
+  if (!before) return { beanTemp: ordered[0]?.beanTemp ?? 0, gasPressure: ordered[0]?.gasPressure ?? 0 };
+  if (!after) return { beanTemp: before.beanTemp, gasPressure: before.gasPressure };
+  const ratio = (seconds - before.seconds) / (after.seconds - before.seconds);
+  return {
+    beanTemp: Number((before.beanTemp + ((after.beanTemp - before.beanTemp) * ratio)).toFixed(1)),
+    gasPressure: Number((before.gasPressure + ((after.gasPressure - before.gasPressure) * ratio)).toFixed(1)),
+  };
 }
 
 function formatTime(seconds: number): string {

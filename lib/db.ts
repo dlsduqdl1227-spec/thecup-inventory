@@ -244,6 +244,7 @@ async function initializeDatabase(): Promise<void> {
   await ensureStaffPermissionColumns(db);
   await ensureInventoryItemColumns(db);
   await ensureInventoryMovementColumns(db);
+  await ensureRoastingProfileColumns(db);
 
   const financeSeedStatements = monthlySeeds.map((row) =>
     db
@@ -328,6 +329,38 @@ async function ensureInventoryMovementColumns(db: D1Database): Promise<void> {
       .prepare("ALTER TABLE inventory_movements ADD COLUMN receipt_deleted_at TEXT")
       .run();
   }
+}
+
+async function ensureRoastingProfileColumns(db: D1Database): Promise<void> {
+  const columns = await db
+    .prepare("PRAGMA table_info(roasting_profiles)")
+    .all<{ name: string }>();
+  const names = new Set(columns.results.map((column) => column.name));
+
+  if (!names.has("turning_point_seconds")) {
+    await db
+      .prepare("ALTER TABLE roasting_profiles ADD COLUMN turning_point_seconds INTEGER")
+      .run();
+  }
+
+  await db
+    .prepare(
+      `UPDATE roasting_profiles
+       SET turning_point_seconds = COALESCE(
+         (
+           SELECT rp.seconds
+           FROM roasting_points rp
+           WHERE rp.profile_id = roasting_profiles.id
+             AND rp.seconds > 0
+             AND rp.seconds < roasting_profiles.first_crack_seconds
+           ORDER BY rp.bean_temp ASC, rp.seconds ASC
+           LIMIT 1
+         ),
+         yellowing_seconds
+       )
+       WHERE turning_point_seconds IS NULL`,
+    )
+    .run();
 }
 
 async function ensureInventoryItemColumns(db: D1Database): Promise<void> {

@@ -168,7 +168,7 @@ export async function GET(request: Request) {
             .prepare(
               `SELECT p.id, p.bean_name AS beanName, p.origin, p.process,
                       p.batch_weight AS batchWeight, p.charge_temp AS chargeTemp,
-                      p.yellowing_seconds AS yellowingSeconds,
+                      COALESCE(p.turning_point_seconds, p.yellowing_seconds) AS turningPointSeconds,
                       p.first_crack_seconds AS firstCrackSeconds,
                       p.drop_temp AS dropTemp, p.total_seconds AS totalSeconds,
                       p.development_seconds AS developmentSeconds,

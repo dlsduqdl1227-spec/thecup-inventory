@@ -12,7 +12,7 @@ export async function GET(request: Request) {
       .prepare(
         `SELECT p.id, p.bean_name AS beanName, p.origin, p.process,
                 p.batch_weight AS batchWeight, p.charge_temp AS chargeTemp,
-                p.yellowing_seconds AS yellowingSeconds,
+                COALESCE(p.turning_point_seconds, p.yellowing_seconds) AS turningPointSeconds,
                 p.first_crack_seconds AS firstCrackSeconds,
                 p.drop_temp AS dropTemp, p.total_seconds AS totalSeconds,
                 p.development_seconds AS developmentSeconds,
@@ -37,7 +37,11 @@ export async function GET(request: Request) {
       grouped.set(point.profileId, list);
     }
     const result = profiles.results.map((profile) => {
-      const profilePoints = grouped.get(Number(profile.id)) ?? [];
+      const profilePoints = (grouped.get(Number(profile.id)) ?? []).map((point) => (
+        point.seconds === 0 && point.beanTemp <= 0
+          ? { ...point, beanTemp: Number(profile.chargeTemp) }
+          : point
+      ));
       return {
         ...profile,
         points: profilePoints,
@@ -45,11 +49,11 @@ export async function GET(request: Request) {
           profilePoints.length >= 2
             ? calculateRorMetrics(
                 profilePoints,
-                Number(profile.yellowingSeconds),
+                Number(profile.turningPointSeconds),
                 Number(profile.firstCrackSeconds),
                 Number(profile.totalSeconds),
               )
-            : { drying: 0, maillard: 0, development: 0 },
+            : { turningToCrack: 0, development: 0 },
       };
     });
     return Response.json({ profiles: result });
@@ -69,10 +73,10 @@ export async function POST(request: Request) {
     const insertProfile = db
       .prepare(
         `INSERT INTO roasting_profiles
-          (bean_name, origin, process, batch_weight, charge_temp, yellowing_seconds,
+          (bean_name, origin, process, batch_weight, charge_temp, yellowing_seconds, turning_point_seconds,
            first_crack_seconds, drop_temp, total_seconds, development_seconds,
            development_ratio, gas_notes, notes, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         profile.beanName,
@@ -80,7 +84,8 @@ export async function POST(request: Request) {
         profile.process,
         profile.batchWeight,
         profile.chargeTemp,
-        profile.yellowingSeconds,
+        profile.turningPointSeconds,
+        profile.turningPointSeconds,
         profile.firstCrackSeconds,
         profile.dropTemp,
         profile.totalSeconds,
@@ -131,7 +136,7 @@ export async function PATCH(request: Request) {
         .prepare(
           `UPDATE roasting_profiles
            SET bean_name = ?, origin = ?, process = ?, batch_weight = ?, charge_temp = ?,
-               yellowing_seconds = ?, first_crack_seconds = ?, drop_temp = ?, total_seconds = ?,
+               yellowing_seconds = ?, turning_point_seconds = ?, first_crack_seconds = ?, drop_temp = ?, total_seconds = ?,
                development_seconds = ?, development_ratio = ?, gas_notes = ?, notes = ?,
                updated_at = CURRENT_TIMESTAMP
            WHERE id = ?`,
@@ -142,7 +147,8 @@ export async function PATCH(request: Request) {
           profile.process,
           profile.batchWeight,
           profile.chargeTemp,
-          profile.yellowingSeconds,
+          profile.turningPointSeconds,
+          profile.turningPointSeconds,
           profile.firstCrackSeconds,
           profile.dropTemp,
           profile.totalSeconds,

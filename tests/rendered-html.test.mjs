@@ -34,9 +34,15 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /brand\/monthly-coffee\.png/);
   assert.match(app, /수업 사용 기록/);
   assert.match(app, /로스팅 프로파일/);
-  assert.match(app, /분·초 단위 시간/);
+  assert.match(app, /터닝포인트/);
+  assert.match(app, /한눈에 따라하기/);
+  assert.match(app, /MilestoneEditor/);
+  assert.match(app, /주요 시점만 한 번 입력/);
+  assert.match(app, /왼쪽 축 ℃ · 오른쪽 축 bar/);
+  assert.doesNotMatch(app, /옐로잉|yellowingSeconds/);
+  assert.match(app, /아래 포인트에 자동 반영됩니다/);
   assert.match(app, /가스 압력\(bar\)/);
-  assert.match(app, /1\.5bar/);
+  assert.match(app, /chargeGasPressure/);
   assert.match(app, /`\$\{minutes\}분 \$\{remainingSeconds\}초`/);
   assert.doesNotMatch(app, /가스 압력\(%\)|투입 80%/);
   assert.match(app, /로스팅\(원두\)/);
@@ -82,7 +88,10 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(styles, /\.inventory-card-controls/);
   assert.match(styles, /\.inventory-item-modal-actions/);
   assert.match(styles, /\.duration-input/);
-  assert.match(styles, /\.gas-schedule/);
+  assert.match(styles, /\.chart-point-list/);
+  assert.match(styles, /\.milestone-grid/);
+  assert.match(styles, /\.roast-follow-guide/);
+  assert.match(styles, /\.roast-step-card/);
   assert.match(styles, /\.point-cell-label/);
   assert.match(styles, /\.mobile-history-nav/);
   assert.match(styles, /\.staff-delete-button/);
@@ -141,10 +150,10 @@ test("admin record routes preserve linked inventory, finance and receipt data", 
 });
 
 test("migration covers identity, finance, inventory, receipts and roasting", async () => {
-  const migration = await readFile(
-    new URL("drizzle/0000_mixed_night_nurse.sql", root),
-    "utf8",
-  );
+  const [migration, turningPointMigration] = await Promise.all([
+    readFile(new URL("drizzle/0000_mixed_night_nurse.sql", root), "utf8"),
+    readFile(new URL("drizzle/0007_natural_mantis.sql", root), "utf8"),
+  ]);
   for (const table of [
     "staff",
     "sessions",
@@ -161,6 +170,7 @@ test("migration covers identity, finance, inventory, receipts and roasting", asy
   assert.match(migration, /receipt_key/);
   assert.match(migration, /development_ratio/);
   assert.match(migration, /inventory_nonnegative_update/);
+  assert.match(turningPointMigration, /turning_point_seconds/);
 });
 
 test("guards critical identity, date and persistence edge cases", async () => {
@@ -218,6 +228,8 @@ test("guards critical identity, date and persistence edge cases", async () => {
   assert.match(database, /ALTER TABLE staff ADD COLUMN deleted_at TEXT/);
   assert.match(database, /readLegacyInventoryEntries/);
   assert.match(database, /summarizeLegacyInventory/);
+  assert.match(database, /ensureRoastingProfileColumns/);
+  assert.match(database, /ORDER BY rp\.bean_temp ASC/);
   assert.match(database, /ON CONFLICT\(legacy_key\) DO NOTHING/);
   const historicalSeeds = [...database.matchAll(
     /\{ year: (2022|2023), month: (\d+), revenue: (\d+), expense: (\d+) \}/g,
@@ -247,6 +259,7 @@ test("guards critical identity, date and persistence edge cases", async () => {
     { revenue: 144425361, expense: 9044186 },
   );
   assert.match(dashboard, /legacyInventoryCount/);
+  assert.match(dashboard, /turningPointSeconds/);
   assert.match(dashboard, /기존 재고 기록/);
   assert.match(dashboard, /소비기한/);
   assert.doesNotMatch(dashboard, /`유효 \$\{entry\.expiry_date\}`/);

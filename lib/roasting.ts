@@ -17,7 +17,7 @@ export type RoastProfileInput = {
   process: string;
   batchWeight: number;
   chargeTemp: number;
-  yellowingSeconds: number;
+  turningPointSeconds: number;
   firstCrackSeconds: number;
   dropTemp: number;
   totalSeconds: number;
@@ -30,10 +30,10 @@ export type RoastProfileInput = {
 
 export function parseRoastProfile(payload: Record<string, unknown>): RoastProfileInput {
   const totalSeconds = Math.round(positiveNumber(payload.totalSeconds, "총 로스팅 시간"));
-  const yellowingSeconds = Math.round(positiveNumber(payload.yellowingSeconds, "옐로잉 시간"));
+  const turningPointSeconds = Math.round(positiveNumber(payload.turningPointSeconds, "터닝포인트 시간"));
   const firstCrackSeconds = Math.round(positiveNumber(payload.firstCrackSeconds, "1차 크랙 시간"));
-  if (!(yellowingSeconds < firstCrackSeconds && firstCrackSeconds < totalSeconds)) {
-    throw new Error("옐로잉, 1차 크랙, 배출 시간의 순서를 확인해 주세요.");
+  if (!(turningPointSeconds < firstCrackSeconds && firstCrackSeconds < totalSeconds)) {
+    throw new Error("터닝포인트, 1차 크랙, 종료 시간의 순서를 확인해 주세요.");
   }
 
   const rawPoints = Array.isArray(payload.points) ? payload.points : [];
@@ -57,17 +57,23 @@ export function parseRoastProfile(payload: Record<string, unknown>): RoastProfil
   if (points.some((point) => point.seconds > totalSeconds || point.gasPressure > 5)) {
     throw new Error("그래프 시간 또는 가스 압력(0~5bar) 범위를 확인해 주세요.");
   }
+  if (![turningPointSeconds, firstCrackSeconds, totalSeconds].every(
+    (seconds) => points.some((point) => point.seconds === seconds),
+  )) {
+    throw new Error("터닝포인트, 1차 크랙, 종료 시점이 그래프 포인트에 자동 반영되지 않았습니다.");
+  }
 
   const developmentSeconds = totalSeconds - firstCrackSeconds;
+  const dropTemp = positiveNumber(points.at(-1)?.beanTemp, "종료 온도");
   return {
     beanName: textValue(payload.beanName, "원두명", 100),
     origin: optionalText(payload.origin, 100),
     process: optionalText(payload.process, 100),
     batchWeight: positiveNumber(payload.batchWeight, "배치 중량"),
     chargeTemp: positiveNumber(payload.chargeTemp, "투입 온도"),
-    yellowingSeconds,
+    turningPointSeconds,
     firstCrackSeconds,
-    dropTemp: positiveNumber(payload.dropTemp, "배출 온도"),
+    dropTemp,
     totalSeconds,
     developmentSeconds,
     developmentRatio: Number(((developmentSeconds / totalSeconds) * 100).toFixed(1)),
@@ -79,13 +85,12 @@ export function parseRoastProfile(payload: Record<string, unknown>): RoastProfil
 
 export function calculateRorMetrics(
   points: RoastPointInput[],
-  yellowingSeconds: number,
+  turningPointSeconds: number,
   firstCrackSeconds: number,
   totalSeconds: number,
 ) {
   return {
-    drying: averageRor(points, 0, yellowingSeconds),
-    maillard: averageRor(points, yellowingSeconds, firstCrackSeconds),
+    turningToCrack: averageRor(points, turningPointSeconds, firstCrackSeconds),
     development: averageRor(points, firstCrackSeconds, totalSeconds),
   };
 }

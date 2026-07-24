@@ -1707,11 +1707,124 @@ td.expense {
   gap: 8px;
 }
 
+.roast-follow-guide {
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  background: var(--white);
+}
+
+.roast-follow-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
+  padding: 18px 20px;
+}
+
+.roast-follow-heading h3 {
+  margin: 6px 0 0;
+  font-size: 18px;
+}
+
+.roast-follow-heading p {
+  max-width: 410px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.roast-step-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.roast-step-card {
+  position: relative;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  padding: 17px;
+}
+
+.roast-step-card:first-child {
+  border-left: 0;
+}
+
+.roast-step-number {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.roast-step-copy h4 {
+  margin: 8px 0 5px;
+  font-size: 14px;
+}
+
+.roast-step-copy p {
+  min-height: 34px;
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.roast-step-card dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.roast-step-card dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid #eeeeee;
+  padding-top: 7px;
+}
+
+.roast-step-card dt {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.roast-step-card dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .curve-wrap {
   position: relative;
   border: 1px solid var(--line);
   background: #f5f5f5;
-  padding-top: 28px;
+}
+
+.curve-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--white);
+  padding: 13px 16px;
+}
+
+.curve-heading > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.curve-heading strong {
+  font-size: 13px;
+}
+
+.curve-heading > div:first-child span {
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .curve-wrap canvas {
@@ -1720,7 +1833,7 @@ td.expense {
   height: 320px;
 }
 
-.gas-schedule {
+.chart-point-list {
   display: flex;
   gap: 1px;
   overflow-x: auto;
@@ -1728,7 +1841,7 @@ td.expense {
   background: var(--line);
 }
 
-.gas-schedule > div {
+.chart-point-list > div {
   flex: 1 0 105px;
   display: flex;
   flex-direction: column;
@@ -1737,21 +1850,25 @@ td.expense {
   padding: 10px 12px;
 }
 
-.gas-schedule span {
+.chart-point-list span {
   color: var(--muted);
   font-size: 10px;
 }
 
-.gas-schedule strong {
+.chart-point-list strong {
   color: var(--ink);
   font-size: 13px;
 }
 
+.chart-point-list em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
 .curve-legend {
-  position: absolute;
-  top: 12px;
-  right: 18px;
-  z-index: 1;
+  display: flex;
+  align-items: center;
 }
 
 .temp-line,
@@ -1759,17 +1876,17 @@ td.expense {
   width: 22px;
   height: 2px;
   margin-left: 9px;
-  background: var(--orange);
+  background: var(--ink);
 }
 
 .gas-line {
-  border-top: 2px dashed var(--green);
+  border-top: 2px dashed #777777;
   background: transparent;
 }
 
 .roast-metrics {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
   margin-top: 14px;
   background: var(--line);
@@ -1805,7 +1922,7 @@ td.expense {
 
 .ror-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-top: 14px;
 }
@@ -1826,6 +1943,13 @@ td.expense {
 .ror-grid strong {
   font-family: Georgia, "Times New Roman", serif;
   font-size: 18px;
+}
+
+.ror-grid small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .profile-notes {
@@ -1901,16 +2025,100 @@ td.expense {
   margin: 0;
 }
 
+.section-heading > div > p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.milestone-heading {
+  align-items: flex-start;
+}
+
+.milestone-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.milestone-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: #f7f7f7;
+  padding: 16px;
+}
+
+.milestone-card legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 7px;
+}
+
+.milestone-card legend span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.milestone-card legend strong {
+  font-size: 14px;
+}
+
+.milestone-card > p {
+  min-height: 34px;
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.milestone-card .field {
+  margin-bottom: 12px;
+}
+
+.milestone-card .milestone-values .field {
+  margin-bottom: 0;
+}
+
+.auto-points-heading {
+  align-items: flex-end;
+}
+
 .point-table {
   border: 1px solid var(--line);
 }
 
 .point-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 70px;
+  grid-template-columns: 1.1fr 1.2fr 1fr 1fr 70px;
   gap: 1px;
   background: var(--line);
   border-top: 1px solid var(--line);
+}
+
+.point-kind {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  background: var(--white);
+  padding: 9px 11px;
+}
+
+.point-kind strong {
+  font-size: 11px;
+}
+
+.point-kind small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.point-kind.automatic {
+  border-left: 3px solid var(--ink);
+  background: #f0f0f0;
 }
 
 .point-row:first-child {
@@ -2405,6 +2613,18 @@ td,
 
   .audit-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .roast-step-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .roast-step-card:nth-child(3) {
+    border-left: 0;
+  }
+
+  .roast-step-card:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
   }
 }
 
@@ -2938,8 +3158,43 @@ td,
 
   .two-columns,
   .three-columns,
-  .profile-notes {
+  .profile-notes,
+  .milestone-grid {
     grid-template-columns: 1fr;
+  }
+
+  .roast-follow-heading,
+  .curve-heading,
+  .auto-points-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .roast-follow-heading p {
+    max-width: none;
+  }
+
+  .roast-step-list {
+    grid-template-columns: 1fr;
+  }
+
+  .roast-step-card,
+  .roast-step-card:nth-child(3) {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  .roast-step-card:first-child {
+    border-top: 0;
+  }
+
+  .roast-step-copy p {
+    min-height: 0;
+  }
+
+  .curve-legend {
+    flex-wrap: wrap;
+    margin-left: -9px;
   }
 
   .roast-metrics {
@@ -2990,6 +3245,12 @@ td,
     font-weight: 750;
   }
 
+  .point-row .point-kind {
+    grid-column: 1 / -1;
+    min-height: 58px;
+    border: 1px solid var(--line);
+  }
+
   .point-row .duration-input.compact,
   .point-row .point-value {
     border: 1px solid var(--line);
@@ -3022,11 +3283,11 @@ td,
     font-size: 12px;
   }
 
-  .gas-schedule span {
+  .chart-point-list span {
     font-size: 11px;
   }
 
-  .gas-schedule strong {
+  .chart-point-list strong {
     font-size: 14px;
   }
 
