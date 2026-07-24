@@ -33,8 +33,8 @@ export async function GET(
     if (!movement?.receiptKey) {
       return Response.json({ error: "영수증을 찾을 수 없습니다." }, { status: 404 });
     }
-    if (movement.createdBy !== user.id && !user.canInventory && !user.canFinance) {
-      return Response.json({ error: "본인이 등록한 영수증만 볼 수 있습니다." }, { status: 403 });
+    if (movement.createdBy !== user.id && user.role !== "admin" && !user.canFinance) {
+      return Response.json({ error: "영수증을 볼 수 있는 권한이 없습니다." }, { status: 403 });
     }
 
     const receipt = await db
@@ -53,6 +53,7 @@ export async function GET(
       "content-disposition": `inline; filename="receipt-${movementId}"`,
       "cache-control": "private, max-age=300",
       "x-content-type-options": "nosniff",
+      "content-length": String(receipt.data.byteLength),
     });
     return new Response(receipt.data, { headers });
   } catch (error) {

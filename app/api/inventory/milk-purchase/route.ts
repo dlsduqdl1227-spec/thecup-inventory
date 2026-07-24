@@ -9,6 +9,7 @@ import {
   positiveNumber,
 } from "../../../../lib/http";
 import { makeRoomForReceipt } from "../../../../lib/receipt-storage";
+import { hasValidImageSignature } from "../../../../lib/image-signature";
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_RECEIPT_BYTES = 400_000;
@@ -41,6 +42,9 @@ export async function POST(request: Request) {
     if (!milk) throw new Error("우유 재고 품목을 찾을 수 없습니다.");
 
     const receiptData = await receipt.arrayBuffer();
+    if (!hasValidImageSignature(receiptData, receipt.type)) {
+      throw new Error("선택한 파일이 올바른 영수증 이미지가 아닙니다.");
+    }
     const receiptToken = crypto.randomUUID();
     const cleanup = await makeRoomForReceipt(db, receiptData.byteLength);
     const [movementResult] = await db.batch([
@@ -82,7 +86,7 @@ export async function POST(request: Request) {
       `${quantity}팩 · ${amount}원${cleanupDetail}`,
     );
     return Response.json(
-      { id: movementId, archivedReceipts: cleanup.deletedCount },
+      { id: movementId, archivedReceipts: cleanup.deletedCount, receiptBytes: receiptData.byteLength },
       { status: 201 },
     );
   } catch (error) {

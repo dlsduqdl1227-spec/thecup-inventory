@@ -50,22 +50,24 @@ export async function GET(request: Request) {
 
     const movementSql =
       !user.canInventory
-        ? `SELECT m.id, m.movement_type AS movementType, m.quantity,
+        ? `SELECT m.id, m.item_id AS itemId, m.movement_type AS movementType, m.quantity,
                   m.movement_date AS movementDate, m.note, m.class_name AS className,
                   m.cost_amount AS costAmount, m.receipt_key IS NOT NULL AS hasReceipt,
                   m.receipt_deleted_at IS NOT NULL AS receiptArchived,
-                  i.name AS itemName, i.unit, s.name AS createdByName,
+                  i.name AS itemName, i.unit, m.created_by AS createdById,
+                  s.name AS createdByName,
                   m.created_at AS createdAt
            FROM inventory_movements m
            JOIN inventory_items i ON i.id = m.item_id
            JOIN staff s ON s.id = m.created_by
            WHERE m.created_by = ? AND i.category IN ('milk','roasted','gusto')
            ORDER BY m.id DESC LIMIT 30`
-        : `SELECT m.id, m.movement_type AS movementType, m.quantity,
+        : `SELECT m.id, m.item_id AS itemId, m.movement_type AS movementType, m.quantity,
                   m.movement_date AS movementDate, m.note, m.class_name AS className,
                   m.cost_amount AS costAmount, m.receipt_key IS NOT NULL AS hasReceipt,
                   m.receipt_deleted_at IS NOT NULL AS receiptArchived,
-                  i.name AS itemName, i.unit, s.name AS createdByName,
+                  i.name AS itemName, i.unit, m.created_by AS createdById,
+                  s.name AS createdByName,
                   m.created_at AS createdAt
            FROM inventory_movements m
            JOIN inventory_items i ON i.id = m.item_id
@@ -89,6 +91,7 @@ export async function GET(request: Request) {
       const expiryDate = toDateOnly(entry.expiry_date);
       return {
         id: `legacy:${entry.id}`,
+        itemId: 0,
         movementType,
         quantity: Number(entry.amount_mkg) / 1000,
         movementDate: entry.created_at.slice(0, 10),
@@ -107,8 +110,15 @@ export async function GET(request: Request) {
         createdAt: entry.created_at,
       };
     });
+    const permissionFilteredMovements = movements.results.map((movement) => {
+      const row = movement as Record<string, unknown>;
+      const canViewFinancialDetails = user.canFinance || Number(row.createdById) === user.id;
+      return canViewFinancialDetails
+        ? row
+        : { ...row, costAmount: 0, hasReceipt: 0, receiptArchived: 0 };
+    });
     const combinedMovements = [
-      ...movements.results,
+      ...permissionFilteredMovements,
       ...legacyMovements,
     ].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 
@@ -118,6 +128,7 @@ export async function GET(request: Request) {
             .prepare(
               `SELECT t.id, t.kind, t.category, t.amount,
                       t.transaction_date AS transactionDate, t.description,
+                      t.inventory_movement_id AS inventoryMovementId,
                       s.name AS createdByName, t.created_at AS createdAt
                FROM finance_transactions t
                JOIN staff s ON s.id = t.created_by

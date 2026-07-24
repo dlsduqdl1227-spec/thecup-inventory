@@ -9,6 +9,7 @@ import {
   positiveNumber,
   textValue,
 } from "../../../lib/http";
+import { formatInventoryQuantity } from "../../../lib/quantity";
 
 const categories = ["green", "roasted", "gusto", "milk", "other"];
 
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
         withInitialStock ? "create_item_with_stock" : "create_item",
         "inventory_item",
         String(id),
-        withInitialStock ? `${name} · 입고 ${initialQuantity}${unit}` : name,
+        withInitialStock ? `${name} · 입고 ${formatInventoryQuantity(initialQuantity, unit)}` : name,
       );
       return Response.json({ id, movementId, quantity: initialQuantity }, { status: 201 });
     }
@@ -114,7 +115,7 @@ export async function POST(request: Request) {
     if (movementType === "out") delta = -inputQuantity;
     if (movementType === "adjust") delta = inputQuantity - Number(item.quantity);
     const nextQuantity = Number(item.quantity) + delta;
-    if (nextQuantity < 0) throw new Error(`재고가 부족합니다. 현재 ${item.quantity}${item.unit}입니다.`);
+    if (nextQuantity < 0) throw new Error(`재고가 부족합니다. 현재 ${formatInventoryQuantity(Number(item.quantity), item.unit)}입니다.`);
 
     const movement = db
       .prepare(
@@ -128,7 +129,7 @@ export async function POST(request: Request) {
       .bind(nextQuantity, itemId);
     const [, inserted] = await db.batch([update, movement]);
     const movementId = Number(inserted.meta.last_row_id);
-    await audit(user.id, "inventory_movement", "inventory_movement", String(movementId), `${item.name} · ${delta}`);
+    await audit(user.id, "inventory_movement", "inventory_movement", String(movementId), `${item.name} · ${formatInventoryQuantity(delta, item.unit)}`);
     return Response.json({ id: movementId, quantity: nextQuantity }, { status: 201 });
   } catch (error) {
     return jsonError(error);

@@ -7,6 +7,10 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  formatInventoryAmount,
+  formatSignedInventoryQuantity,
+} from "../../lib/quantity";
 
 type Role = "admin" | "employee" | "instructor";
 type TabKey = "dashboard" | "record" | "inventory" | "finance" | "roasting" | "staff";
@@ -45,6 +49,7 @@ type InventoryItem = {
 
 type Movement = {
   id: number | string;
+  itemId: number;
   movementType: string;
   quantity: number;
   movementDate: string;
@@ -67,6 +72,7 @@ type FinanceTransaction = {
   transactionDate: string;
   description: string;
   createdByName: string;
+  inventoryMovementId: number | null;
 };
 
 type RoastPoint = {
@@ -137,7 +143,6 @@ const won = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 0,
 });
 const number = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 });
-const quantityNumber = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 2 });
 
 const roleLabel: Record<Role, string> = {
   admin: "관리자",
@@ -685,8 +690,43 @@ function RecordView({
   notify: (toast: { kind: "ok" | "error"; message: string }) => void;
 }) {
   const [busy, setBusy] = useState<"milk" | "class" | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<{
+    url: string;
+    name: string;
+    size: number;
+  } | null>(null);
   const beanItems = data.inventory.filter((item) => ["roasted", "gusto"].includes(item.category));
   const instructor = data.user.role === "instructor";
+
+  useEffect(() => {
+    return () => {
+      if (receiptPreview) URL.revokeObjectURL(receiptPreview.url);
+    };
+  }, [receiptPreview]);
+
+  function selectReceipt(file: File | undefined, input: HTMLInputElement) {
+    if (!file) {
+      setReceiptPreview(null);
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      input.value = "";
+      setReceiptPreview(null);
+      notify({ kind: "error", message: "영수증 이미지 파일을 선택해 주세요." });
+      return;
+    }
+    if (file.size > 20_000_000) {
+      input.value = "";
+      setReceiptPreview(null);
+      notify({ kind: "error", message: "원본 사진은 20MB 이하만 선택할 수 있습니다." });
+      return;
+    }
+    setReceiptPreview({
+      url: URL.createObjectURL(file),
+      name: file.name || "촬영한 영수증",
+      size: file.size,
+    });
+  }
 
   async function submitMilk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -698,17 +738,18 @@ function RecordView({
       if (!(source instanceof File) || !source.size) throw new Error("영수증 사진을 선택해 주세요.");
       const optimized = await optimizeReceipt(source);
       form.set("receipt", optimized, optimized.name);
-      const result = await requestJson<{ id: number; archivedReceipts: number }>(
+      const result = await requestJson<{ id: number; archivedReceipts: number; receiptBytes: number }>(
         "/api/inventory/milk-purchase",
         { method: "POST", body: form },
       );
       formElement.reset();
+      setReceiptPreview(null);
       await onUpdated();
       notify({
         kind: "ok",
         message: result.archivedReceipts
           ? `우유 구매를 반영하고 오래된 영수증 ${result.archivedReceipts}건을 자동 정리했습니다.`
-          : "우유 입고·비용·영수증이 함께 반영됐습니다.",
+          : `우유 입고·비용과 영수증 ${formatFileSize(result.receiptBytes)}을 함께 저장했습니다.`,
       });
     } catch (error) {
       notify({ kind: "error", message: errorMessage(error) });
@@ -754,7 +795,10 @@ function RecordView({
           .map((item) => (
             <div key={item.id}>
               <span>{item.name}</span>
-              <strong>{number.format(item.quantity)}<small>{item.unit}</small></strong>
+              {(() => {
+                const amount = formatInventoryAmount(item.quantity, item.unit);
+                return <strong>{amount.value}<small>{amount.unit}</small></strong>;
+              })()}
               {item.lowStock ? <em>보충 필요</em> : <em className="ok">사용 가능</em>}
             </div>
           ))}
@@ -786,10 +830,23 @@ function RecordView({
                   accept="image/*"
                   capture="environment"
                   required
+                  onChange={(event) => selectReceipt(event.target.files?.[0], event.target)}
                 />
                 <span>사진 촬영 또는 파일 선택</span>
                 <small>JPG · PNG · WebP / 자동 압축 저장</small>
               </label>
+              {receiptPreview && (
+                <div className="receipt-preview" aria-live="polite">
+                  {/* Local object URLs are preview-only and must not pass through the image optimizer. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={receiptPreview.url} alt="선택한 영수증 미리보기" />
+                  <div>
+                    <strong>사진 준비 완료</strong>
+                    <span>{receiptPreview.name}</span>
+                    <small>원본 {formatFileSize(receiptPreview.size)} · 저장할 때 자동 최적화</small>
+                  </div>
+                </div>
+              )}
             </Field>
             <Field label="메모 (선택)">
               <input name="note" placeholder="구매처 또는 수업명" maxLength={300} />
@@ -841,7 +898,12 @@ function RecordView({
         <div className="panel-heading">
           <div><span className="eyebrow">최근 기록</span><h3>{instructor ? "내 최근 기록" : "최근 수업·구매 기록"}</h3></div>
         </div>
-        <MovementTable movements={data.movements.filter((movement) => movement.className || movement.costAmount)} />
+        <MovementTable
+          movements={data.movements.filter((movement) => movement.className || movement.costAmount)}
+          isAdmin={data.user.role === "admin"}
+          onUpdated={onUpdated}
+          notify={notify}
+        />
       </article>
     </section>
   );
@@ -1052,7 +1114,12 @@ function InventoryView({
       {inventoryTab === "history" && (
         <article className="panel table-panel" role="tabpanel">
           <div className="panel-heading"><div><span className="eyebrow">재고 장부</span><h3>최근 재고 기록</h3></div></div>
-          <MovementTable movements={data.movements} />
+          <MovementTable
+            movements={data.movements}
+            isAdmin={data.user.role === "admin"}
+            onUpdated={onUpdated}
+            notify={notify}
+          />
         </article>
       )}
     </section>
@@ -1070,6 +1137,8 @@ function FinanceView({
 }) {
   const [busy, setBusy] = useState(false);
   const [kind, setKind] = useState<"income" | "expense">("income");
+  const [editingTransaction, setEditingTransaction] = useState<FinanceTransaction | null>(null);
+  const [busyTransactionId, setBusyTransactionId] = useState<number | null>(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1089,6 +1158,49 @@ function FinanceView({
       notify({ kind: "error", message: errorMessage(error) });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveTransaction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingTransaction) return;
+    setBusyTransactionId(editingTransaction.id);
+    try {
+      const form = new FormData(event.currentTarget);
+      form.set("id", String(editingTransaction.id));
+      await requestJson("/api/finance", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(Object.fromEntries(form.entries())),
+      });
+      setEditingTransaction(null);
+      await onUpdated();
+      notify({ kind: "ok", message: "수입·지출 기록을 수정했습니다." });
+    } catch (error) {
+      notify({ kind: "error", message: errorMessage(error) });
+    } finally {
+      setBusyTransactionId(null);
+    }
+  }
+
+  async function deleteTransaction(entry: FinanceTransaction) {
+    const linkedMessage = entry.inventoryMovementId
+      ? " 연결된 우유 입고·영수증·재고 수량도 함께 정리됩니다."
+      : "";
+    if (!window.confirm(`${entry.category} ${won.format(entry.amount)} 기록을 삭제할까요?${linkedMessage}`)) return;
+    setBusyTransactionId(entry.id);
+    try {
+      await requestJson("/api/finance", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: entry.id }),
+      });
+      await onUpdated();
+      notify({ kind: "ok", message: "수입·지출 기록을 삭제했습니다." });
+    } catch (error) {
+      notify({ kind: "error", message: errorMessage(error) });
+    } finally {
+      setBusyTransactionId(null);
     }
   }
 
@@ -1124,7 +1236,7 @@ function FinanceView({
           </div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>일자</th><th>구분</th><th>분류</th><th>설명</th><th>금액</th><th>등록자</th></tr></thead>
+              <thead><tr><th>일자</th><th>구분</th><th>분류</th><th>설명</th><th>금액</th><th>등록자</th>{data.user.role === "admin" && <th>관리</th>}</tr></thead>
               <tbody>
                 {data.transactions.length ? data.transactions.map((entry) => (
                   <tr key={entry.id}>
@@ -1134,13 +1246,54 @@ function FinanceView({
                     <td>{entry.description || "—"}</td>
                     <td className={entry.kind}>{entry.kind === "income" ? "+" : "−"} {won.format(entry.amount)}</td>
                     <td>{entry.createdByName}</td>
+                    {data.user.role === "admin" && (
+                      <td>
+                        <div className="record-actions">
+                          <button type="button" onClick={() => setEditingTransaction(entry)}>수정</button>
+                          <button type="button" className="danger" disabled={busyTransactionId === entry.id} onClick={() => void deleteTransaction(entry)}>
+                            {busyTransactionId === entry.id ? "처리 중" : "삭제"}
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
-                )) : <tr><td colSpan={6} className="empty-cell">신규 입력 내역이 없습니다.</td></tr>}
+                )) : <tr><td colSpan={data.user.role === "admin" ? 7 : 6} className="empty-cell">신규 입력 내역이 없습니다.</td></tr>}
               </tbody>
             </table>
           </div>
         </article>
       </div>
+
+      {editingTransaction && (
+        <div className="record-modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.currentTarget === event.target) setEditingTransaction(null);
+        }}>
+          <article className="record-modal" role="dialog" aria-modal="true" aria-labelledby="finance-editor-title">
+            <div className="record-modal-heading">
+              <div><span className="eyebrow">관리자 편집</span><h3 id="finance-editor-title">수입·지출 기록 수정</h3></div>
+              <button type="button" aria-label="닫기" onClick={() => setEditingTransaction(null)}>×</button>
+            </div>
+            <form onSubmit={saveTransaction}>
+              <div className="two-columns">
+                <Field label="구분">
+                  {editingTransaction.inventoryMovementId
+                    ? <><input type="hidden" name="kind" value="expense" /><input value="지출 (우유 구매 연결)" disabled /></>
+                    : <select name="kind" defaultValue={editingTransaction.kind}><option value="income">수입</option><option value="expense">지출</option></select>}
+                </Field>
+                <Field label="날짜"><input name="transactionDate" type="date" defaultValue={editingTransaction.transactionDate} required /></Field>
+              </div>
+              <Field label="분류"><input name="category" defaultValue={editingTransaction.category} maxLength={50} required /></Field>
+              <Field label="금액"><div className="input-suffix"><input name="amount" type="number" min="1" step="1" defaultValue={editingTransaction.amount} required /><span>원</span></div></Field>
+              <Field label="설명"><textarea name="description" rows={3} defaultValue={editingTransaction.description} maxLength={300} /></Field>
+              {editingTransaction.inventoryMovementId && <p className="linked-record-note">우유 구매 기록과 연결되어 있습니다. 날짜·금액 수정 시 재고 기록에도 함께 반영됩니다.</p>}
+              <div className="record-modal-actions">
+                <button type="button" className="ghost-button" onClick={() => setEditingTransaction(null)}>취소</button>
+                <button className="primary-button" disabled={busyTransactionId === editingTransaction.id}>{busyTransactionId === editingTransaction.id ? "저장 중…" : "수정 저장"}</button>
+              </div>
+            </form>
+          </article>
+        </div>
+      )}
     </section>
   );
 }
@@ -1714,31 +1867,136 @@ function StaffView({
   );
 }
 
-function MovementTable({ movements }: { movements: Movement[] }) {
+function MovementTable({
+  movements,
+  isAdmin = false,
+  onUpdated,
+  notify,
+}: {
+  movements: Movement[];
+  isAdmin?: boolean;
+  onUpdated?: () => Promise<void>;
+  notify?: (toast: { kind: "ok" | "error"; message: string }) => void;
+}) {
+  const [editing, setEditing] = useState<Movement | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  async function saveMovement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editing || typeof editing.id !== "number" || !onUpdated || !notify) return;
+    setBusyId(editing.id);
+    try {
+      const form = new FormData(event.currentTarget);
+      await requestJson(`/api/inventory/movements/${editing.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(Object.fromEntries(form.entries())),
+      });
+      setEditing(null);
+      await onUpdated();
+      notify({ kind: "ok", message: "재고 기록과 현재 재고를 함께 수정했습니다." });
+    } catch (error) {
+      notify({ kind: "error", message: errorMessage(error) });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function deleteMovement(movement: Movement) {
+    if (typeof movement.id !== "number" || !onUpdated || !notify) return;
+    if (!window.confirm(`${movement.itemName} 기록을 삭제할까요? 현재 재고와 연결된 비용·영수증도 함께 정리됩니다.`)) return;
+    setBusyId(movement.id);
+    try {
+      await requestJson(`/api/inventory/movements/${movement.id}`, { method: "DELETE" });
+      await onUpdated();
+      notify({ kind: "ok", message: "재고 기록을 삭제하고 현재 재고를 다시 계산했습니다." });
+    } catch (error) {
+      notify({ kind: "error", message: errorMessage(error) });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
-    <div className="table-wrap">
-      <table>
-        <thead><tr><th>일자</th><th>품목</th><th>구분</th><th>수량</th><th>수업 / 메모</th><th>비용</th><th>등록자</th><th /></tr></thead>
-        <tbody>
-          {movements.length ? movements.map((movement) => (
-            <tr key={movement.id}>
-              <td>{movement.movementDate}</td>
-              <td><strong>{movement.itemName}</strong></td>
-              <td><span className={`movement-badge ${movement.movementType}`}>{movementLabel[movement.movementType] ?? movement.movementType}</span></td>
-              <td className={movement.quantity < 0 ? "expense" : "income"}>{formatSignedInventoryAmount(movement.quantity, movement.unit)}</td>
-              <td>{movement.className || movement.note || "—"}</td>
-              <td>{movement.costAmount ? won.format(movement.costAmount) : "—"}</td>
-              <td>{movement.createdByName}</td>
-              <td>{movement.hasReceipt
-                ? <a className="receipt-link" href={`/api/receipts/${movement.id}`} target="_blank" rel="noreferrer">영수증</a>
-                : movement.receiptArchived
-                  ? <span className="receipt-archived">보관 만료</span>
-                  : null}</td>
-            </tr>
-          )) : <tr><td colSpan={8} className="empty-cell">아직 기록이 없습니다.</td></tr>}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>일자</th><th>품목</th><th>구분</th><th>수량</th><th>수업 / 메모</th><th>비용</th><th>등록자</th><th>첨부</th>{isAdmin && <th>관리</th>}</tr></thead>
+          <tbody>
+            {movements.length ? movements.map((movement) => {
+              const editable = typeof movement.id === "number";
+              return (
+                <tr key={movement.id}>
+                  <td>{movement.movementDate}</td>
+                  <td><strong>{movement.itemName}</strong></td>
+                  <td><span className={`movement-badge ${movement.movementType}`}>{movementLabel[movement.movementType] ?? movement.movementType}</span></td>
+                  <td className={movement.quantity < 0 ? "expense" : "income"}>{formatSignedInventoryQuantity(movement.quantity, movement.unit)}</td>
+                  <td>{movement.className || movement.note || "—"}</td>
+                  <td>{movement.costAmount ? won.format(movement.costAmount) : "—"}</td>
+                  <td>{movement.createdByName}</td>
+                  <td>{movement.hasReceipt
+                    ? <a className="receipt-link" href={`/api/receipts/${movement.id}`} target="_blank" rel="noreferrer">영수증 보기</a>
+                    : movement.receiptArchived
+                      ? <span className="receipt-archived">보관 만료</span>
+                      : "—"}</td>
+                  {isAdmin && (
+                    <td>
+                      {editable ? (
+                        <div className="record-actions">
+                          <button type="button" onClick={() => setEditing(movement)}>수정</button>
+                          <button type="button" className="danger" disabled={busyId === movement.id} onClick={() => void deleteMovement(movement)}>
+                            {busyId === movement.id ? "처리 중" : "삭제"}
+                          </button>
+                        </div>
+                      ) : <span className="readonly-record">이관 원본</span>}
+                    </td>
+                  )}
+                </tr>
+              );
+            }) : <tr><td colSpan={isAdmin ? 9 : 8} className="empty-cell">아직 기록이 없습니다.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {editing && typeof editing.id === "number" && (
+        <div className="record-modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.currentTarget === event.target) setEditing(null);
+        }}>
+          <article className="record-modal" role="dialog" aria-modal="true" aria-labelledby="movement-editor-title">
+            <div className="record-modal-heading">
+              <div><span className="eyebrow">관리자 편집</span><h3 id="movement-editor-title">재고 기록 수정</h3></div>
+              <button type="button" aria-label="닫기" onClick={() => setEditing(null)}>×</button>
+            </div>
+            <p className="record-modal-summary"><strong>{editing.itemName}</strong> · {movementLabel[editing.movementType] ?? editing.movementType}</p>
+            <form onSubmit={saveMovement}>
+              <div className="two-columns">
+                <Field label="날짜"><input name="movementDate" type="date" defaultValue={editing.movementDate} required /></Field>
+                <Field label={`${editing.movementType === "adjust" ? "실사 변동량" : "수량"} (${editing.unit})`}>
+                  <input
+                    name="quantity"
+                    type="number"
+                    step="0.01"
+                    min={editing.movementType === "adjust" ? undefined : "0.01"}
+                    defaultValue={editing.movementType === "adjust" ? editing.quantity : Math.abs(editing.quantity)}
+                    required
+                  />
+                </Field>
+              </div>
+              <Field label="수업명 (선택)"><input name="className" defaultValue={editing.className} maxLength={100} /></Field>
+              <Field label="메모 (선택)"><textarea name="note" rows={3} defaultValue={editing.note} maxLength={300} /></Field>
+              {(editing.costAmount > 0 || editing.hasReceipt > 0) && (
+                <Field label="결제 금액"><div className="input-suffix"><input name="costAmount" type="number" min="1" step="1" defaultValue={editing.costAmount} required /><span>원</span></div></Field>
+              )}
+              {editing.hasReceipt > 0 && <p className="linked-record-note">영수증과 지출 내역이 연결되어 있습니다. 날짜·금액 수정 시 함께 반영됩니다.</p>}
+              <div className="record-modal-actions">
+                <button type="button" className="ghost-button" onClick={() => setEditing(null)}>취소</button>
+                <button className="primary-button" disabled={busyId === editing.id}>{busyId === editing.id ? "저장 중…" : "수정 저장"}</button>
+              </div>
+            </form>
+          </article>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1879,20 +2137,14 @@ function inventoryOptionLabel(item: InventoryItem): string {
   return `${name} · 현재 ${amount.value}${amount.unit}`;
 }
 
-function formatInventoryAmount(quantity: number, unit: string): { value: string; unit: string } {
-  if (unit.trim().toLowerCase() === "g" && Math.abs(quantity) >= 1000) {
-    return { value: quantityNumber.format(quantity / 1000), unit: "kg" };
-  }
-  return { value: quantityNumber.format(quantity), unit };
-}
-
-function formatSignedInventoryAmount(quantity: number, unit: string): string {
-  const amount = formatInventoryAmount(quantity, unit);
-  return `${quantity > 0 ? "+" : ""}${amount.value}${amount.unit}`;
-}
-
 function formatDateOnly(value: string | null | undefined): string | null {
   return value?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] ?? null;
+}
+
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0KB";
+  if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1000))}KB`;
+  return `${(bytes / 1_000_000).toFixed(1)}MB`;
 }
 
 function errorMessage(error: unknown): string {
@@ -1930,9 +2182,13 @@ function auditLabel(action: string): string {
     update_staff: "권한 변경",
     delete_staff: "직원 삭제",
     create_finance: "장부 입력",
+    update_finance: "장부 수정",
+    delete_finance: "장부 삭제",
     create_item: "품목 추가",
     create_item_with_stock: "품목 등록 · 입고",
     inventory_movement: "재고 변동",
+    update_inventory_record: "재고 기록 수정",
+    delete_inventory_record: "재고 기록 삭제",
     class_consumption: "수업 사용",
     milk_purchase: "우유 구매",
     roast_inventory: "로스팅 배치",

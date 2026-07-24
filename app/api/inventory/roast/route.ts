@@ -7,6 +7,7 @@ import {
   optionalText,
   positiveNumber,
 } from "../../../../lib/http";
+import { formatInventoryQuantity } from "../../../../lib/quantity";
 
 export async function POST(request: Request) {
   try {
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     const green = items.results.find((item) => item.id === greenItemId && item.category === "green");
     const roasted = items.results.find((item) => item.id === roastedItemId && item.category === "roasted");
     if (!green || !roasted) throw new Error("투입할 생두와 로스팅(원두) 입고 품목을 정확히 선택해 주세요.");
-    if (greenKg > Number(green.quantity)) throw new Error(`생두 재고가 부족합니다. 현재 ${green.quantity}${green.unit}입니다.`);
+    if (greenKg > Number(green.quantity)) throw new Error(`생두 재고가 부족합니다. 현재 ${formatInventoryQuantity(Number(green.quantity), green.unit)}입니다.`);
 
     await db.batch([
       db
@@ -54,7 +55,13 @@ export async function POST(request: Request) {
         )
         .bind(roasted.id, outputGrams, movementDate, note, user.id),
     ]);
-    await audit(user.id, "roast_inventory", "inventory_movement", "", `${greenKg}kg → ${outputGrams}g`);
+    await audit(
+      user.id,
+      "roast_inventory",
+      "inventory_movement",
+      "",
+      `${formatInventoryQuantity(greenKg, green.unit)} → ${formatInventoryQuantity(outputGrams, roasted.unit)}`,
+    );
     return Response.json({ ok: true }, { status: 201 });
   } catch (error) {
     return jsonError(error);

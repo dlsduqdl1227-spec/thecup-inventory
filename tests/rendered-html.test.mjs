@@ -40,7 +40,6 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /재고 작업 선택/);
   assert.match(app, /재고 현황/);
   assert.match(app, /formatInventoryAmount/);
-  assert.match(app, /quantity \/ 1000/);
   assert.match(app, /← 이전/);
   assert.match(app, />홈</);
   assert.match(app, /시간강사\(남부\)/);
@@ -56,6 +55,10 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.doesNotMatch(app, /OPERATIONS, REFINED|개월 매출 이관|단계 권한 분리/);
   assert.match(app, /Asia\/Seoul/);
   assert.match(app, /capture="environment"/);
+  assert.match(app, /선택한 영수증 미리보기/);
+  assert.match(app, /재고 기록 수정/);
+  assert.match(app, /수입·지출 기록 수정/);
+  assert.match(app, /이관 원본/);
   assert.doesNotMatch(app, /event\.currentTarget\.reset\(\)/);
   assert.match(styles, /--ink: #111111/);
   assert.match(styles, /\.brand-lockup/);
@@ -76,6 +79,32 @@ test("ships the branded monochrome application instead of the starter preview", 
   const bindings = JSON.parse(hosting);
   assert.equal(bindings.d1, "DB");
   assert.equal(bindings.r2, null);
+});
+
+test("admin record routes preserve linked inventory, finance and receipt data", async () => {
+  const [movementRoute, financeRoute, adminRecords, milkPurchase, receiptRoute, imageSignature] = await Promise.all([
+    readFile(new URL("app/api/inventory/movements/[id]/route.ts", root), "utf8"),
+    readFile(new URL("app/api/finance/route.ts", root), "utf8"),
+    readFile(new URL("lib/admin-records.ts", root), "utf8"),
+    readFile(new URL("app/api/inventory/milk-purchase/route.ts", root), "utf8"),
+    readFile(new URL("app/api/receipts/[id]/route.ts", root), "utf8"),
+    readFile(new URL("lib/image-signature.ts", root), "utf8"),
+  ]);
+
+  assert.match(movementRoute, /requireUser\(request, \["admin"\]\)/);
+  assert.match(movementRoute, /export async function PATCH/);
+  assert.match(movementRoute, /export async function DELETE/);
+  assert.match(financeRoute, /update_finance/);
+  assert.match(financeRoute, /delete_finance/);
+  assert.match(adminRecords, /DELETE FROM receipt_files/);
+  assert.match(adminRecords, /DELETE FROM finance_transactions/);
+  assert.match(adminRecords, /UPDATE inventory_items SET quantity/);
+  assert.match(milkPurchase, /hasValidImageSignature/);
+  assert.match(receiptRoute, /content-length/);
+  assert.match(receiptRoute, /user\.canFinance/);
+  assert.match(imageSignature, /image\/jpeg/);
+  assert.match(imageSignature, /image\/png/);
+  assert.match(imageSignature, /image\/webp/);
 });
 
 test("migration covers identity, finance, inventory, receipts and roasting", async () => {

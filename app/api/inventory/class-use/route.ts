@@ -8,6 +8,7 @@ import {
   optionalText,
   textValue,
 } from "../../../../lib/http";
+import { formatInventoryQuantity } from "../../../../lib/quantity";
 
 export async function POST(request: Request) {
   try {
@@ -40,10 +41,10 @@ export async function POST(request: Request) {
       throw new Error("사용할 원두를 선택해 주세요.");
     }
     if (milkItem && milkQuantity > Number(milkItem.quantity)) {
-      throw new Error(`우유 재고가 부족합니다. 현재 ${milkItem.quantity}${milkItem.unit}입니다.`);
+      throw new Error(`우유 재고가 부족합니다. 현재 ${formatInventoryQuantity(Number(milkItem.quantity), milkItem.unit)}입니다.`);
     }
     if (beanItem && beanQuantity > Number(beanItem.quantity)) {
-      throw new Error(`${beanItem.name} 재고가 부족합니다. 현재 ${beanItem.quantity}${beanItem.unit}입니다.`);
+      throw new Error(`${beanItem.name} 재고가 부족합니다. 현재 ${formatInventoryQuantity(Number(beanItem.quantity), beanItem.unit)}입니다.`);
     }
 
     const statements: D1PreparedStatement[] = [];
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
       "class_consumption",
       "inventory_movement",
       "",
-      `${className} · 우유 ${milkQuantity} · 원두 ${beanQuantity}`,
+      `${className} · 우유 ${formatInventoryQuantity(milkQuantity, milkItem?.unit ?? "팩")} · 원두 ${formatInventoryQuantity(beanQuantity, beanItem?.unit ?? "g")}`,
     );
     return Response.json({ ok: true }, { status: 201 });
   } catch (error) {

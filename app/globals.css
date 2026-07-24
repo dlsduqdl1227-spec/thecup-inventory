@@ -1058,11 +1058,155 @@ td.expense {
   font-weight: 800;
 }
 
-.receipt-archived {
+.receipt-archived,
+.readonly-record {
   color: var(--muted);
   font-size: 9px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.record-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.record-actions button {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--ink);
+  padding: 0 9px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.record-actions button:hover {
+  border-color: var(--ink);
+}
+
+.record-actions button.danger {
+  color: var(--error);
+}
+
+.record-actions button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.receipt-preview {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  padding: 10px;
+}
+
+.receipt-preview img {
+  width: 92px;
+  height: 92px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  background: #eeeeee;
+}
+
+.receipt-preview div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.receipt-preview strong {
+  font-size: 12px;
+}
+
+.receipt-preview span,
+.receipt-preview small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-modal-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background: rgba(17, 17, 17, 0.68);
+  padding: 24px;
+}
+
+.record-modal {
+  width: min(560px, 100%);
+  border: 1px solid #333333;
+  background: var(--paper);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  padding: 26px;
+}
+
+.record-modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.record-modal-heading h3 {
+  margin: 5px 0 0;
+  font-size: 23px;
+}
+
+.record-modal-heading > button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--ink);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.record-modal-summary {
+  margin: -3px 0 18px;
+  border-left: 3px solid var(--ink);
+  background: #ededed;
+  padding: 11px 13px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.record-modal form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.record-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 3px;
+}
+
+.linked-record-note {
+  margin: 0;
+  border: 1px solid var(--line);
+  background: #eeeeee;
+  padding: 11px 12px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 .inventory-grid {
@@ -2328,9 +2472,19 @@ td,
   }
 
   .bottom-nav button {
+    flex: 1 1 0;
+    min-width: 58px;
     min-height: 52px;
     font-size: 12px;
     font-weight: 700;
+  }
+
+  .bottom-nav {
+    scrollbar-width: none;
+  }
+
+  .bottom-nav::-webkit-scrollbar {
+    display: none;
   }
 
   .kpi-grid,
@@ -2423,6 +2577,55 @@ td,
   .inventory-card h3 {
     font-size: 17px;
     line-height: 1.4;
+  }
+
+  .receipt-preview {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .receipt-preview img {
+    width: 76px;
+    height: 76px;
+  }
+
+  .receipt-preview strong,
+  .receipt-preview span,
+  .receipt-preview small {
+    font-size: 12px;
+  }
+
+  .record-modal-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .record-modal {
+    width: 100%;
+    max-height: 92dvh;
+    overflow-y: auto;
+    border-width: 1px 0 0;
+    padding: 21px 16px calc(21px + env(safe-area-inset-bottom));
+  }
+
+  .record-modal-heading h3 {
+    font-size: 21px;
+  }
+
+  .record-modal-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--paper);
+    padding-top: 8px;
+  }
+
+  .record-modal-actions > * {
+    flex: 1;
+  }
+
+  .record-actions button {
+    min-height: 38px;
+    padding: 0 11px;
+    font-size: 12px;
   }
 
   .inventory-meta,
