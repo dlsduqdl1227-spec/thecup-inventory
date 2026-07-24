@@ -34,6 +34,11 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /brand\/monthly-coffee\.png/);
   assert.match(app, /수업 사용 기록/);
   assert.match(app, /로스팅 프로파일/);
+  assert.match(app, /분·초 단위 시간/);
+  assert.match(app, /가스 압력\(bar\)/);
+  assert.match(app, /1\.5bar/);
+  assert.match(app, /`\$\{minutes\}분 \$\{remainingSeconds\}초`/);
+  assert.doesNotMatch(app, /가스 압력\(%\)|투입 80%/);
   assert.match(app, /로스팅\(원두\)/);
   assert.match(app, /새 품목 직접 입고/);
   assert.match(app, /create_item_with_stock/);
@@ -69,6 +74,9 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(styles, /\.inventory-tabs/);
   assert.match(styles, /\.inventory-card-controls/);
   assert.match(styles, /\.inventory-item-modal-actions/);
+  assert.match(styles, /\.duration-input/);
+  assert.match(styles, /\.gas-schedule/);
+  assert.match(styles, /\.point-cell-label/);
   assert.match(styles, /\.mobile-history-nav/);
   assert.match(styles, /\.staff-delete-button/);
   assert.doesNotMatch(styles, /#17483b|#d9613e|#f3f0e7/i);
@@ -193,6 +201,9 @@ test("guards critical identity, date and persistence edge cases", async () => {
   assert.match(receiptStorage, /DELETE FROM receipt_files/);
   assert.match(roasting, /requirePermission\(request, "roasting"\)/);
   assert.match(roasting, /sqlite_sequence WHERE name = 'roasting_profiles'/);
+  const roastingParser = await readFile(new URL("lib/roasting.ts", root), "utf8");
+  assert.match(roastingParser, /point\.gasPressure > 5/);
+  assert.match(roastingParser, /가스 압력\(0~5bar\)/);
   assert.match(permissionsMigration, /ADD `can_finance`/);
   assert.match(permissionsMigration, /WHERE `role` IN \('admin', 'employee'\)/);
   assert.match(legacyMigration, /ADD `legacy_key`/);

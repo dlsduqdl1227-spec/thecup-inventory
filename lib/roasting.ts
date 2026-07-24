@@ -54,8 +54,8 @@ export function parseRoastProfile(payload: Record<string, unknown>): RoastProfil
   if (new Set(points.map((point) => point.seconds)).size !== points.length) {
     throw new Error("그래프 포인트 시간은 중복될 수 없습니다.");
   }
-  if (points.some((point) => point.seconds > totalSeconds || point.gasPressure > 100)) {
-    throw new Error("그래프 시간 또는 가스 압력 범위를 확인해 주세요.");
+  if (points.some((point) => point.seconds > totalSeconds || point.gasPressure > 5)) {
+    throw new Error("그래프 시간 또는 가스 압력(0~5bar) 범위를 확인해 주세요.");
   }
 
   const developmentSeconds = totalSeconds - firstCrackSeconds;
