@@ -5,7 +5,17 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("ships the branded monochrome application instead of the starter preview", async () => {
-  const [page, layout, app, styles, hosting, packageJson, socialImage] = await Promise.all([
+  const [
+    page,
+    layout,
+    app,
+    styles,
+    hosting,
+    packageJson,
+    socialImage,
+    thecupLogo,
+    coffeeLogo,
+  ] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/layout.tsx", root), "utf8"),
     readFile(new URL("app/components/EduSystemApp.tsx", root), "utf8"),
@@ -13,12 +23,15 @@ test("ships the branded monochrome application instead of the starter preview", 
     readFile(new URL(".openai/hosting.json", root), "utf8"),
     readFile(new URL("package.json", root), "utf8"),
     readFile(new URL("public/og.png", root)),
+    readFile(new URL("public/brand/thecup-edu.jpg", root)),
+    readFile(new URL("public/brand/monthly-coffee.png", root)),
   ]);
 
   assert.match(page, /EduSystemApp/);
   assert.match(layout, /더컵에듀 시스템/);
   assert.match(layout, /lang="ko"/);
-  assert.match(app, /EDU SYSTEM/);
+  assert.match(app, /brand\/thecup-edu\.jpg/);
+  assert.match(app, /brand\/monthly-coffee\.png/);
   assert.match(app, /수업 사용 기록/);
   assert.match(app, /로스팅 프로파일/);
   assert.match(app, /더컵 볶은 원두/);
@@ -27,11 +40,16 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /Asia\/Seoul/);
   assert.match(app, /capture="environment"/);
   assert.match(styles, /--ink: #111111/);
+  assert.match(styles, /\.brand-lockup/);
+  assert.match(styles, /\.brand-logo-coffee img/);
   assert.doesNotMatch(styles, /#17483b|#d9613e|#f3f0e7/i);
   assert.doesNotMatch(`${page}\n${layout}\n${app}`, /codex-preview|Your site is taking shape|SkeletonPreview/i);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.equal(socialImage.readUInt32BE(16), 1536);
   assert.equal(socialImage.readUInt32BE(20), 1024);
+  assert.equal(thecupLogo.readUInt16BE(0), 0xffd8);
+  assert.equal(coffeeLogo.readUInt32BE(16), 284);
+  assert.equal(coffeeLogo.readUInt32BE(20), 284);
 
   const bindings = JSON.parse(hosting);
   assert.equal(bindings.d1, "DB");

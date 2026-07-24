@@ -400,10 +400,31 @@ export function EduSystemApp() {
 
 function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={compact ? "brand compact" : "brand"} aria-label="더컵에듀 시스템">
-      <span className="brand-kicker">THE CUP</span>
-      <strong>EDU SYSTEM</strong>
-      {!compact && <small>Inventory · Revenue · Roasting</small>}
+    <div
+      className={compact ? "brand-lockup compact" : "brand-lockup"}
+      role="img"
+      aria-label="더컵에듀와 월간커피 공동 브랜드"
+    >
+      <span className="brand-logo-crop brand-logo-thecup" aria-hidden="true">
+        {/* vinext의 이미지 래퍼 대신 정적 브랜드 자산을 그대로 전달합니다. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/thecup-edu.jpg"
+          alt=""
+          width={720}
+          height={720}
+        />
+      </span>
+      <span className="brand-logo-divider" aria-hidden="true" />
+      <span className="brand-logo-crop brand-logo-coffee" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/monthly-coffee.png"
+          alt=""
+          width={284}
+          height={284}
+        />
+      </span>
     </div>
   );
 }

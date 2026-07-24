@@ -71,31 +71,60 @@ npm test
 `SESSION_SECRET`은 휴대폰 번호 해시와 로그인 세션에 사용되므로 운영 중 임의로 바꾸지 않습니다.
 바꾸면 기존 직원의 휴대폰 해시와 더 이상 일치하지 않아 로그인이 불가능해질 수 있습니다.
 
-## 기존 서비스 이름 바꾸기
+## GitHub·Cloudflare 이름 변경 순서
 
-### GitHub 저장소
+기존 운영 주소를 먼저 지우거나 끄지 말고 아래 순서대로 진행합니다.
+
+### 0. 변경 전 기록
+
+1. Cloudflare의 기존 Worker 이름, D1·R2 바인딩, 환경 변수 목록을 기록합니다.
+2. `SESSION_SECRET` 값은 변경하지 않습니다.
+3. 새 배포 확인이 끝날 때까지 기존 `thecup-inventory` 주소를 유지합니다.
+
+### 1. GitHub에서 할 작업
 
 1. 기존 저장소에서 `Settings` → `General`로 이동합니다.
 2. `Repository name`을 `thecup-edu-system`으로 바꾸고 `Rename`을 누릅니다.
-3. 로컬 저장소에 GitHub 원격이 연결돼 있다면 새 주소로 갱신합니다.
+3. 로컬 폴더의 GitHub 원격 주소를 확인합니다.
 
 ```bash
-git remote set-url origin https://github.com/계정명/thecup-edu-system.git
 git remote -v
 ```
 
-GitHub는 이전 저장소 주소를 새 주소로 전달하지만, 혼선을 막기 위해 로컬 원격 주소와 외부 배포 설정도 새 이름으로 갱신합니다.
+4. `origin`이 이미 있다면 새 주소로 변경합니다.
 
-### 기존 Cloudflare Worker
+```bash
+git remote set-url origin https://github.com/계정명/thecup-edu-system.git
+```
 
-`thecup-inventory.<계정>.workers.dev`와 이 저장소의 Sites 배포 주소는 서로 다른 서비스입니다. 기존 Worker를 유지한다면 다음 순서로 바꿉니다.
+5. `origin`이 없다면 새로 연결합니다.
 
-1. Cloudflare 대시보드의 `Workers & Pages`에서 기존 `thecup-inventory` Worker를 선택합니다.
-2. Worker 설정에서 이름을 `thecup-edu-system`으로 변경합니다.
-3. Wrangler로 배포하는 저장소라면 `wrangler.jsonc` 또는 `wrangler.toml`의 `name`도 `thecup-edu-system`으로 맞춘 뒤 다시 배포합니다.
-4. 기존 주소를 사용하던 직원이 있다면 일정 기간 이전 주소에서 새 주소로 전달되도록 리디렉션을 유지합니다.
+```bash
+git remote add origin https://github.com/계정명/thecup-edu-system.git
+```
 
-운영용 서비스는 `workers.dev` 주소보다 소유한 맞춤 도메인 연결을 권장합니다. 이름 변경 전에는 D1·R2 바인딩과 운영 환경 변수가 기존 리소스를 계속 가리키는지 반드시 확인합니다.
+6. 검증된 `main` 브랜치를 올리고 GitHub Actions가 있다면 성공 여부를 확인합니다.
+
+```bash
+git push -u origin main
+```
+
+GitHub는 이전 저장소 주소를 새 주소로 전달하지만, Cloudflare의 Git 연동과 로컬 원격 주소는 새 저장소 이름으로 다시 확인합니다.
+
+### 2. Cloudflare에서 할 작업
+
+`thecup-inventory.<계정>.workers.dev`와 이 저장소의 Sites 배포 주소는 서로 다른 서비스입니다.
+
+1. Cloudflare `Workers & Pages`에서 기존 `thecup-inventory` Worker를 엽니다.
+2. `Settings`에서 Worker 이름을 `thecup-edu-system`으로 변경합니다.
+3. GitHub 자동 배포를 사용한다면 연결된 저장소가 새 `thecup-edu-system` 저장소를 가리키는지 확인합니다.
+4. Wrangler 배포를 사용한다면 `wrangler.jsonc` 또는 `wrangler.toml`의 `name`도 `thecup-edu-system`으로 맞춥니다.
+5. D1 바인딩은 `DB`, R2 바인딩은 `RECEIPTS`인지 확인합니다.
+6. `SESSION_SECRET`과 필요한 운영 환경 변수가 그대로 있는지 확인한 뒤 새 버전을 배포합니다.
+7. 새 주소에서 로그인, 직원별 권한, 매출, 재고, 영수증, 로스팅 화면을 차례로 확인합니다.
+8. 기존 주소를 사용하던 직원이 있다면 이전 주소에서 새 주소로 전달하는 리디렉션을 별도로 유지합니다.
+
+운영용 서비스는 `workers.dev`보다 소유한 맞춤 도메인 연결을 권장합니다. 새 주소 검증이 끝나기 전에는 기존 Worker나 D1·R2 데이터를 삭제하지 않습니다.
 
 ## 최초 운영 시작
 
