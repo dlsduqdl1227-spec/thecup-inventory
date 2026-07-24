@@ -2,6 +2,7 @@ export type InventoryMovementRecord = {
   id: number;
   itemId: number;
   itemName: string;
+  itemCategory: string;
   itemQuantity: number;
   unit: string;
   movementType: string;
@@ -19,7 +20,7 @@ export async function readInventoryMovementRecord(
 ): Promise<InventoryMovementRecord | null> {
   return db
     .prepare(
-      `SELECT m.id, m.item_id AS itemId, i.name AS itemName,
+      `SELECT m.id, m.item_id AS itemId, i.name AS itemName, i.category AS itemCategory,
               i.quantity AS itemQuantity, i.unit,
               m.movement_type AS movementType, m.quantity,
               m.movement_date AS movementDate, m.note,

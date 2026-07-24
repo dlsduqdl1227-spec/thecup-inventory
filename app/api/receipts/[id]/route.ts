@@ -33,7 +33,9 @@ export async function GET(
     if (!movement?.receiptKey) {
       return Response.json({ error: "영수증을 찾을 수 없습니다." }, { status: 404 });
     }
-    if (movement.createdBy !== user.id && user.role !== "admin" && !user.canFinance) {
+    const canViewAnotherStaffReceipt = user.role === "admin"
+      || (user.role !== "instructor" && user.canFinance);
+    if (movement.createdBy !== user.id && !canViewAnotherStaffReceipt) {
       return Response.json({ error: "영수증을 볼 수 있는 권한이 없습니다." }, { status: 403 });
     }
 

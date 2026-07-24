@@ -8,8 +8,12 @@ import {
   useState,
 } from "react";
 import {
+  formatBeanAmount,
+  formatBeanQuantity,
   formatInventoryAmount,
   formatSignedInventoryQuantity,
+  inventoryQuantityInKilograms,
+  kilogramsToInventoryQuantity,
 } from "../../lib/quantity";
 import { compareInventoryItems, type InventorySort } from "../../lib/inventory-sort";
 
@@ -62,6 +66,7 @@ type Movement = {
   hasReceipt: number;
   receiptArchived: number;
   itemName: string;
+  itemCategory: InventoryItem["category"];
   unit: string;
   legacyProcess?: string;
   legacyExpiryDate?: string | null;
@@ -583,9 +588,12 @@ function DashboardView({ data }: { data: DashboardData }) {
         title="매출 내역"
         description="2022년부터 현재까지의 월별 매출, 비용과 순익을 확인합니다."
         action={
-          <select value={year} onChange={(event) => setYear(Number(event.target.value))} aria-label="분석 연도">
-            {availableYears.map((value) => <option key={value} value={value}>{value}년</option>)}
-          </select>
+          <div className="page-action-group">
+            <select value={year} onChange={(event) => setYear(Number(event.target.value))} aria-label="분석 연도">
+              {availableYears.map((value) => <option key={value} value={value}>{value}년</option>)}
+            </select>
+            <a className="export-button" href="/api/exports/finance">전체 매출 Excel</a>
+          </div>
         }
       />
 
@@ -701,6 +709,7 @@ function RecordView({
   } | null>(null);
   const beanItems = data.inventory.filter((item) => ["roasted", "gusto"].includes(item.category));
   const instructor = data.user.role === "instructor";
+  const administrator = data.user.role === "admin";
 
   useEffect(() => {
     return () => {
@@ -790,7 +799,11 @@ function RecordView({
       <PageHeader
         eyebrow={instructor ? "내 수업 기록" : "수업 사용 기록"}
         title={instructor ? `${data.user.name}님의 수업 기록` : "수업별 사용량 기록"}
-        description="우유 구매는 영수증과 비용까지, 수업 사용량은 원두와 우유 재고까지 한 번에 반영됩니다."
+        description={instructor
+          ? "우유 입고와 수업 사용량을 기록합니다. 아래에는 내가 등록한 기록만 표시됩니다."
+          : administrator
+            ? "전체 직원의 우유 입고·수업 사용 기록과 등록자를 확인하고 관리합니다."
+            : "우유 구매는 영수증과 비용까지, 수업 사용량은 원두와 우유 재고까지 한 번에 반영됩니다."}
       />
 
       <div className="stock-strip">
@@ -800,7 +813,7 @@ function RecordView({
             <div key={item.id}>
               <span>{item.name}</span>
               {(() => {
-                const amount = formatInventoryAmount(item.quantity, item.unit);
+                const amount = inventoryItemAmount(item);
                 return <strong>{amount.value}<small>{amount.unit}</small></strong>;
               })()}
               {item.lowStock ? <em>보충 필요</em> : <em className="ok">사용 가능</em>}
@@ -884,10 +897,11 @@ function RecordView({
                   {beanItems.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}
                 </select>
               </Field>
-              <Field label="원두 사용 (g)">
-                <input name="beanQuantity" type="number" min="0" step="1" defaultValue="0" />
+              <Field label="원두 사용 (kg)">
+                <input name="beanQuantityKg" type="number" min="0" step="0.01" defaultValue="0" placeholder="0.5" />
               </Field>
             </div>
+            <p className="quantity-helper">예: 500g은 <strong>0.5kg</strong>, 1kg은 <strong>1</strong>로 입력하세요.</p>
             <Field label="메모 (선택)">
               <input name="note" placeholder="인원, 특이사항" maxLength={300} />
             </Field>
@@ -900,7 +914,7 @@ function RecordView({
 
       <article className="panel table-panel">
         <div className="panel-heading">
-          <div><span className="eyebrow">최근 기록</span><h3>{instructor ? "내 최근 기록" : "최근 수업·구매 기록"}</h3></div>
+          <div><span className="eyebrow">기록 확인</span><h3>{instructor ? "내 우유 입고·수업 기록" : administrator ? "전체 우유 입고·수업 기록" : "최근 수업·구매 기록"}</h3></div>
         </div>
         <MovementTable
           movements={data.movements.filter((movement) => movement.className || movement.costAmount)}
@@ -1006,6 +1020,14 @@ function InventoryView({
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    const enteredQuantity = Number(form.get("quantity"));
+    const storedQuantity = movementItem && (movementItem.category === "roasted" || movementItem.category === "gusto")
+      ? kilogramsToInventoryQuantity(enteredQuantity, movementItem.unit)
+      : form.get("quantity");
+    const enteredOutputQuantity = Number(form.get("outputQuantity"));
+    const storedOutputQuantity = roastedOutputItem
+      ? kilogramsToInventoryQuantity(enteredOutputQuantity, roastedOutputItem.unit)
+      : form.get("outputQuantity");
     setBusy(true);
     try {
       const payload = isGreenRoast
@@ -1013,7 +1035,7 @@ function InventoryView({
             greenItemId: movementItemId,
             roastedItemId: roastedOutputItemId,
             greenKg: form.get("quantity"),
-            outputGrams: form.get("outputQuantity"),
+            outputGrams: storedOutputQuantity,
             movementDate: form.get("movementDate"),
             note: form.get("note"),
           }
@@ -1022,6 +1044,7 @@ function InventoryView({
             action: "movement",
             itemId: movementItemId,
             movementType,
+            quantity: storedQuantity,
           };
       await requestJson(isGreenRoast ? "/api/inventory/roast" : "/api/inventory", {
         method: "POST",
@@ -1050,6 +1073,12 @@ function InventoryView({
     setItemBusy(true);
     try {
       const form = new FormData(event.currentTarget);
+      if (editingItem.category === "roasted" || editingItem.category === "gusto") {
+        form.set(
+          "reorderLevel",
+          String(kilogramsToInventoryQuantity(Number(form.get("reorderLevel")), editingItem.unit)),
+        );
+      }
       await requestJson(`/api/inventory/items/${editingItem.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -1087,6 +1116,7 @@ function InventoryView({
         eyebrow="재고 현황"
         title="재고 관리"
         description="생두와 원두를 구분해 확인하고, 모든 입고와 출고를 한 화면에서 기록합니다."
+        action={<a className="export-button" href="/api/exports/inventory">전체 재고 Excel</a>}
       />
 
       <div className="inventory-tabs" role="tablist" aria-label="재고 작업 선택">
@@ -1148,8 +1178,8 @@ function InventoryView({
                 </div>
                 <div className="inventory-grid">
                   {section.items.map((item) => {
-                    const amount = formatInventoryAmount(item.quantity, item.unit);
-                    const minimum = formatInventoryAmount(item.reorderLevel, item.unit);
+                    const amount = inventoryItemAmount(item);
+                    const minimum = inventoryItemAmount(item, item.reorderLevel);
                     return (
                       <article className={item.lowStock ? "inventory-card low" : "inventory-card"} key={item.id}>
                         <div className="inventory-card-top">
@@ -1213,7 +1243,7 @@ function InventoryView({
                       <option value="adjust">실사 수량으로 조정</option>
                     </select>
                   </Field>
-                  <Field label={`${movementType === "adjust" ? "실사 수량" : isGreenRoast ? "생두 투입량" : "수량"} (${movementItem?.unit ?? "단위"})`}>
+                  <Field label={`${movementType === "adjust" ? "실사 수량" : isGreenRoast ? "생두 투입량" : "수량"} (${movementItem && (movementItem.category === "roasted" || movementItem.category === "gusto") ? "kg" : movementItem?.unit ?? "단위"})`}>
                     <input name="quantity" type="number" min={movementType === "adjust" ? "0" : "0.01"} step="0.01" required />
                   </Field>
                 </div>
@@ -1228,7 +1258,7 @@ function InventoryView({
                             : <option value="">새 품목 입고에서 원두를 먼저 등록하세요</option>}
                         </select>
                       </Field>
-                      <Field label={`완성 원두 수량 (${roastedOutputItem?.unit ?? "g"})`}>
+                      <Field label="완성 원두 수량 (kg)">
                         <input name="outputQuantity" type="number" min="0.01" step="0.01" required />
                       </Field>
                     </div>
@@ -1287,7 +1317,7 @@ function InventoryView({
         const classificationLocked = Boolean(editingItem.legacyKey)
           || Boolean(editingItem.hasMovements)
           || Math.abs(editingItem.quantity) > 0.000001;
-        const currentAmount = formatInventoryAmount(editingItem.quantity, editingItem.unit);
+        const currentAmount = inventoryItemAmount(editingItem);
         return (
           <div className="record-modal-backdrop" role="presentation" onMouseDown={(event) => {
             if (event.currentTarget === event.target) setEditingItem(null);
@@ -1310,7 +1340,7 @@ function InventoryView({
                   </Field>
                   <Field label="단위">
                     {classificationLocked ? (
-                      <><input type="hidden" name="unit" value={editingItem.unit} /><input value={editingItem.unit} disabled /></>
+                      <><input type="hidden" name="unit" value={editingItem.unit} /><input value={editingItem.category === "roasted" || editingItem.category === "gusto" ? "kg" : editingItem.unit} disabled /></>
                     ) : <input name="unit" defaultValue={editingItem.unit} maxLength={10} required />}
                   </Field>
                 </div>
@@ -1320,7 +1350,7 @@ function InventoryView({
                 </div>
                 <div className="two-columns">
                   <Field label="소비기한 (선택)"><input name="expiryDate" type="date" defaultValue={formatDateOnly(editingItem.expiryDate) ?? ""} /></Field>
-                  <Field label={`최소 재고 (${editingItem.unit})`}><input name="reorderLevel" type="number" min="0" step="0.01" defaultValue={editingItem.reorderLevel} required /></Field>
+                  <Field label={`최소 재고 (${editingItem.category === "roasted" || editingItem.category === "gusto" ? "kg" : editingItem.unit})`}><input name="reorderLevel" type="number" min="0" step="0.01" defaultValue={editingItem.category === "roasted" || editingItem.category === "gusto" ? inventoryQuantityInKilograms(editingItem.reorderLevel, editingItem.unit) : editingItem.reorderLevel} required /></Field>
                 </div>
                 <p className="linked-record-note">품목명을 수정하면 연결된 입출고·수업·영수증 기록에도 즉시 반영됩니다. 현재 잔량은 입출고 탭의 ‘실사 수량으로 조정’을 이용하세요.</p>
                 {classificationLocked && <p className="locked-field-note">기존 수량과 기록의 단위가 달라지지 않도록 분류와 단위는 잠겨 있습니다.</p>}
@@ -2317,6 +2347,12 @@ function MovementTable({
     setBusyId(editing.id);
     try {
       const form = new FormData(event.currentTarget);
+      if (isBeanMovement(editing)) {
+        form.set(
+          "quantity",
+          String(kilogramsToInventoryQuantity(Number(form.get("quantity")), editing.unit)),
+        );
+      }
       await requestJson(movementEndpoint(editing), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -2362,7 +2398,7 @@ function MovementTable({
                   <td>{movement.movementDate}</td>
                   <td><strong>{movement.itemName}</strong></td>
                   <td><span className={`movement-badge ${movement.movementType}`}>{movementLabel[movement.movementType] ?? movement.movementType}</span></td>
-                  <td className={movement.quantity < 0 ? "expense" : "income"}>{formatSignedInventoryQuantity(movement.quantity, movement.unit)}</td>
+                  <td className={movement.quantity < 0 ? "expense" : "income"}>{formatMovementQuantity(movement)}</td>
                   <td>{movement.className || movement.note || "—"}</td>
                   <td>{movement.costAmount ? won.format(movement.costAmount) : "—"}</td>
                   <td>{movement.createdByName}</td>
@@ -2401,13 +2437,13 @@ function MovementTable({
             <form onSubmit={saveMovement}>
               <div className="two-columns">
                 <Field label="날짜"><input name="movementDate" type="date" defaultValue={editing.movementDate} required /></Field>
-                <Field label={`${editing.movementType === "adjust" ? "실사 변동량" : "수량"} (${editing.unit})`}>
+                <Field label={`${editing.movementType === "adjust" ? "실사 변동량" : "수량"} (${isBeanMovement(editing) ? "kg" : editing.unit})`}>
                   <input
                     name="quantity"
                     type="number"
                     step="0.01"
                     min={editing.movementType === "adjust" ? undefined : "0.01"}
-                    defaultValue={editing.movementType === "adjust" ? editing.quantity : Math.abs(editing.quantity)}
+                    defaultValue={movementInputQuantity(editing)}
                     required
                   />
                 </Field>
@@ -2571,9 +2607,32 @@ function sum(values: number[]): number {
 }
 
 function inventoryOptionLabel(item: InventoryItem): string {
-  const amount = formatInventoryAmount(item.quantity, item.unit);
+  const amount = inventoryItemAmount(item);
   const name = item.lot ? `${item.name} · LOT ${item.lot}` : item.name;
   return `[${categoryLabel[item.category]}] ${name} · 현재 ${amount.value}${amount.unit}`;
+}
+
+function inventoryItemAmount(item: InventoryItem, quantity = item.quantity) {
+  return item.category === "roasted" || item.category === "gusto"
+    ? formatBeanAmount(quantity, item.unit)
+    : formatInventoryAmount(quantity, item.unit);
+}
+
+function isBeanMovement(movement: Movement): boolean {
+  return movement.itemCategory === "roasted" || movement.itemCategory === "gusto";
+}
+
+function formatMovementQuantity(movement: Movement): string {
+  return isBeanMovement(movement)
+    ? formatBeanQuantity(movement.quantity, movement.unit, true)
+    : formatSignedInventoryQuantity(movement.quantity, movement.unit);
+}
+
+function movementInputQuantity(movement: Movement): number {
+  const quantity = isBeanMovement(movement)
+    ? inventoryQuantityInKilograms(movement.quantity, movement.unit)
+    : movement.quantity;
+  return movement.movementType === "adjust" ? quantity : Math.abs(quantity);
 }
 
 function formatDateOnly(value: string | null | undefined): string | null {

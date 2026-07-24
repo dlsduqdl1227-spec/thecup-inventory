@@ -12,7 +12,7 @@ import {
   optionalText,
   positiveNumber,
 } from "../../../../../lib/http";
-import { formatInventoryQuantity } from "../../../../../lib/quantity";
+import { formatBeanQuantity, formatInventoryQuantity } from "../../../../../lib/quantity";
 
 function recordId(value: string): number {
   const id = Number(value);
@@ -93,7 +93,7 @@ export async function PATCH(
       "update_inventory_record",
       "inventory_movement",
       String(id),
-      `${record.itemName} · ${formatInventoryQuantity(quantity, record.unit)}`,
+      `${record.itemName} · ${formatRecordQuantity(record.itemCategory, quantity, record.unit)}`,
     );
     return Response.json({ ok: true });
   } catch (error) {
@@ -118,10 +118,16 @@ export async function DELETE(
       "delete_inventory_record",
       "inventory_movement",
       String(id),
-      `${record.itemName} · ${formatInventoryQuantity(record.quantity, record.unit)}`,
+      `${record.itemName} · ${formatRecordQuantity(record.itemCategory, record.quantity, record.unit)}`,
     );
     return Response.json({ ok: true });
   } catch (error) {
     return jsonError(error);
   }
+}
+
+function formatRecordQuantity(category: string, quantity: number, unit: string): string {
+  return category === "roasted" || category === "gusto"
+    ? formatBeanQuantity(quantity, unit, quantity > 0)
+    : formatInventoryQuantity(quantity, unit);
 }

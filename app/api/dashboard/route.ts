@@ -64,37 +64,38 @@ export async function GET(request: Request) {
         lowStock: number;
       }>();
 
+    const ownMovementScope = user.role === "instructor" || !user.canInventory;
     const movementSql =
-      !user.canInventory
+      ownMovementScope
         ? `SELECT m.id, m.item_id AS itemId, m.movement_type AS movementType, m.quantity,
                   m.movement_date AS movementDate, m.note, m.class_name AS className,
                   m.cost_amount AS costAmount, m.receipt_key IS NOT NULL AS hasReceipt,
                   m.receipt_deleted_at IS NOT NULL AS receiptArchived,
-                  i.name AS itemName, i.unit, m.created_by AS createdById,
+                  i.name AS itemName, i.category AS itemCategory, i.unit, m.created_by AS createdById,
                   s.name AS createdByName,
                   m.created_at AS createdAt
            FROM inventory_movements m
            JOIN inventory_items i ON i.id = m.item_id
            JOIN staff s ON s.id = m.created_by
            WHERE m.created_by = ? AND i.category IN ('milk','roasted','gusto')
-           ORDER BY m.id DESC LIMIT 30`
+           ORDER BY m.id DESC`
         : `SELECT m.id, m.item_id AS itemId, m.movement_type AS movementType, m.quantity,
                   m.movement_date AS movementDate, m.note, m.class_name AS className,
                   m.cost_amount AS costAmount, m.receipt_key IS NOT NULL AS hasReceipt,
                   m.receipt_deleted_at IS NOT NULL AS receiptArchived,
-                  i.name AS itemName, i.unit, m.created_by AS createdById,
+                  i.name AS itemName, i.category AS itemCategory, i.unit, m.created_by AS createdById,
                   s.name AS createdByName,
                   m.created_at AS createdAt
            FROM inventory_movements m
            JOIN inventory_items i ON i.id = m.item_id
            JOIN staff s ON s.id = m.created_by
-           ORDER BY m.id DESC LIMIT 60`;
+           ORDER BY m.id DESC`;
     const movements =
-      !user.canInventory
+      ownMovementScope
         ? await db.prepare(movementSql).bind(user.id).all()
         : await db.prepare(movementSql).all();
 
-    const legacyEntries = user.canInventory
+    const legacyEntries = user.role !== "instructor" && user.canInventory
       ? await readLegacyInventoryEntries(db)
       : [];
     const inventoryByLegacyKey = new Map(
@@ -128,6 +129,7 @@ export async function GET(request: Request) {
         hasReceipt: 0,
         receiptArchived: 0,
         itemName: masterItem?.name ?? entry.item,
+        itemCategory: category,
         unit: "kg",
         legacyProcess: entry.process,
         legacyExpiryDate: expiryDate,

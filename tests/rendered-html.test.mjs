@@ -78,6 +78,15 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /Asia\/Seoul/);
   assert.match(app, /capture="environment"/);
   assert.match(app, /선택한 영수증 미리보기/);
+  assert.match(app, /내가 등록한 기록만 표시됩니다/);
+  assert.match(app, /전체 직원의 우유 입고·수업 사용 기록과 등록자/);
+  assert.match(app, /name="beanQuantityKg"/);
+  assert.match(app, /500g은 <strong>0\.5kg<\/strong>/);
+  assert.doesNotMatch(app, /원두 사용 \(g\)/);
+  assert.match(app, /전체 매출 Excel/);
+  assert.match(app, /전체 재고 Excel/);
+  assert.match(app, /api\/exports\/finance/);
+  assert.match(app, /api\/exports\/inventory/);
   assert.match(app, /재고 기록 수정/);
   assert.match(app, /품목 정보 수정/);
   assert.match(app, /api\/inventory\/items\//);
@@ -94,6 +103,8 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(styles, /\.inventory-section-heading/);
   assert.match(styles, /\.inventory-entry-switch/);
   assert.match(styles, /\.inline-roast-workflow/);
+  assert.match(styles, /\.export-button/);
+  assert.match(styles, /\.quantity-helper/);
   assert.match(styles, /\.inventory-overview-controls/);
   assert.match(styles, /\.inventory-sort-control/);
   assert.match(styles, /\.inventory-card-controls/);
@@ -109,6 +120,7 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.doesNotMatch(styles, /#17483b|#d9613e|#f3f0e7/i);
   assert.doesNotMatch(`${page}\n${layout}\n${app}`, /codex-preview|Your site is taking shape|SkeletonPreview/i);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
+  assert.match(packageJson, /"fflate": "0\.8\.3"/);
   assert.equal(socialImage.readUInt32BE(16), 1536);
   assert.equal(socialImage.readUInt32BE(20), 1024);
   assert.equal(thecupLogo.readUInt16BE(0), 0xffd8);
@@ -155,6 +167,7 @@ test("admin record routes preserve linked inventory, finance and receipt data", 
   assert.match(milkPurchase, /hasValidImageSignature/);
   assert.match(receiptRoute, /content-length/);
   assert.match(receiptRoute, /user\.canFinance/);
+  assert.match(receiptRoute, /user\.role !== "instructor"/);
   assert.match(imageSignature, /image\/jpeg/);
   assert.match(imageSignature, /image\/png/);
   assert.match(imageSignature, /image\/webp/);
@@ -271,8 +284,31 @@ test("guards critical identity, date and persistence edge cases", async () => {
     { revenue: 144425361, expense: 9044186 },
   );
   assert.match(dashboard, /legacyInventoryCount/);
+  assert.match(dashboard, /ownMovementScope = user\.role === "instructor"/);
+  assert.doesNotMatch(dashboard, /LIMIT 30|LIMIT 60/);
   assert.match(dashboard, /turningPointSeconds/);
   assert.match(dashboard, /기존 재고 기록/);
   assert.match(dashboard, /소비기한/);
   assert.doesNotMatch(dashboard, /`유효 \$\{entry\.expiry_date\}`/);
+});
+
+test("Excel exports are permission-protected and include complete business data", async () => {
+  const [financeExport, inventoryExport, xlsx] = await Promise.all([
+    readFile(new URL("app/api/exports/finance/route.ts", root), "utf8"),
+    readFile(new URL("app/api/exports/inventory/route.ts", root), "utf8"),
+    readFile(new URL("lib/xlsx.ts", root), "utf8"),
+  ]);
+  assert.match(financeExport, /requirePermission\(request, "finance"\)/);
+  assert.match(financeExport, /월별 매출/);
+  assert.match(financeExport, /추가 매출·지출/);
+  assert.match(inventoryExport, /requirePermission\(request, "inventory"\)/);
+  assert.match(inventoryExport, /ownRecordsOnly = user\.role === "instructor"/);
+  assert.match(inventoryExport, /WHERE m\.created_by = \?/);
+  assert.match(inventoryExport, /readLegacyInventoryEntries/);
+  assert.match(inventoryExport, /현재 재고/);
+  assert.match(inventoryExport, /재고 기록/);
+  assert.match(inventoryExport, /createdByName/);
+  assert.match(xlsx, /application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/);
+  assert.match(xlsx, /content-disposition/);
+  assert.match(xlsx, /autoFilter/);
 });
