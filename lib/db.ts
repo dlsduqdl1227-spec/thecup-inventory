@@ -163,6 +163,12 @@ const schemaStatements = [
   "CREATE INDEX IF NOT EXISTS finance_date_idx ON finance_transactions(transaction_date)",
   "CREATE INDEX IF NOT EXISTS audit_created_idx ON audit_logs(created_at)",
   "CREATE INDEX IF NOT EXISTS roasting_points_profile_idx ON roasting_points(profile_id, seconds)",
+  `CREATE TRIGGER IF NOT EXISTS inventory_nonnegative_update
+   BEFORE UPDATE OF quantity ON inventory_items
+   WHEN NEW.quantity < 0
+   BEGIN
+     SELECT RAISE(ABORT, 'inventory_quantity_negative');
+   END`,
 ];
 
 let initialization: Promise<void> | null = null;

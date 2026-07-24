@@ -118,7 +118,7 @@ type AuditLog = {
   actorName: string | null;
 };
 
-const today = new Date().toISOString().slice(0, 10);
+const today = currentKoreanDate();
 const won = new Intl.NumberFormat("ko-KR", {
   style: "currency",
   currency: "KRW",
@@ -395,7 +395,7 @@ function AuthScreen({
         </div>
         <div className="auth-metrics" aria-hidden="true">
           <div><b>36</b><span>개월 매출 이관</span></div>
-          <div><b>2</b><span>단계 권한 분리</span></div>
+          <div><b>3</b><span>역할별 권한</span></div>
           <div><b>1</b><span>통합 운영 화면</span></div>
         </div>
       </section>
@@ -675,7 +675,13 @@ function RecordView({
             </Field>
             <Field label="영수증 사진">
               <label className="file-drop">
-                <input name="receipt" type="file" accept="image/jpeg,image/png,image/webp" required />
+                <input
+                  name="receipt"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  required
+                />
                 <span>사진 촬영 또는 파일 선택</span>
                 <small>JPG · PNG · WebP / 자동 압축 저장</small>
               </label>
@@ -1231,11 +1237,11 @@ function RoastCurve({ profile }: { profile: RoastProfile }) {
       const yGas = (gas: number) => pad.top + ((100 - gas) / 100) * chartHeight;
 
       context.clearRect(0, 0, width, height);
-      context.fillStyle = "#f4f1e9";
+      context.fillStyle = "#f5f5f5";
       context.fillRect(0, 0, width, height);
-      context.strokeStyle = "#d9d4c8";
+      context.strokeStyle = "#d6d6d6";
       context.lineWidth = 1;
-      context.fillStyle = "#7b776e";
+      context.fillStyle = "#6f6f6f";
       context.font = "11px Arial";
       for (let index = 0; index <= 4; index += 1) {
         const gridY = pad.top + (chartHeight / 4) * index;
@@ -1252,18 +1258,18 @@ function RoastCurve({ profile }: { profile: RoastProfile }) {
         [profile.firstCrackSeconds, "1차 크랙"],
       ].forEach(([seconds, label]) => {
         const markerX = x(Number(seconds));
-        context.strokeStyle = "#b8b2a6";
+        context.strokeStyle = "#a6a6a6";
         context.setLineDash([4, 5]);
         context.beginPath();
         context.moveTo(markerX, pad.top);
         context.lineTo(markerX, height - pad.bottom);
         context.stroke();
         context.setLineDash([]);
-        context.fillStyle = "#5a574f";
+        context.fillStyle = "#555555";
         context.fillText(String(label), markerX + 5, pad.top + 12);
       });
 
-      context.strokeStyle = "#153e35";
+      context.strokeStyle = "#777777";
       context.lineWidth = 2;
       context.setLineDash([6, 5]);
       context.beginPath();
@@ -1276,7 +1282,7 @@ function RoastCurve({ profile }: { profile: RoastProfile }) {
       context.stroke();
       context.setLineDash([]);
 
-      context.strokeStyle = "#d85b38";
+      context.strokeStyle = "#111111";
       context.lineWidth = 3;
       context.beginPath();
       profile.points.forEach((point, index) => {
@@ -1288,15 +1294,15 @@ function RoastCurve({ profile }: { profile: RoastProfile }) {
       context.stroke();
       profile.points.forEach((point) => {
         context.beginPath();
-        context.fillStyle = "#f4f1e9";
-        context.strokeStyle = "#d85b38";
+        context.fillStyle = "#f5f5f5";
+        context.strokeStyle = "#111111";
         context.lineWidth = 2;
         context.arc(x(point.seconds), y(point.beanTemp), 4, 0, Math.PI * 2);
         context.fill();
         context.stroke();
       });
 
-      context.fillStyle = "#7b776e";
+      context.fillStyle = "#6f6f6f";
       for (let seconds = 0; seconds <= profile.totalSeconds; seconds += Math.max(60, Math.round(profile.totalSeconds / 5 / 60) * 60)) {
         context.fillText(formatTime(seconds), x(seconds) - 12, height - 13);
       }
@@ -1410,7 +1416,15 @@ function StaffView({
                 <select value={member.role} onChange={(event) => void updateStaff(member, { role: event.target.value as Role })} aria-label={`${member.name} 권한`}>
                   <option value="admin">관리자</option><option value="employee">정규직원</option><option value="instructor">시간강사</option>
                 </select>
-                <label className="toggle"><input type="checkbox" checked={Boolean(member.active)} onChange={(event) => void updateStaff(member, { active: event.target.checked ? 1 : 0 })} /><span /></label>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(member.active)}
+                    aria-label={`${member.name} 계정 ${member.active ? "비활성화" : "활성화"}`}
+                    onChange={(event) => void updateStaff(member, { active: event.target.checked ? 1 : 0 })}
+                  />
+                  <span />
+                </label>
               </div>
             ))}
           </div>
@@ -1505,19 +1519,21 @@ async function requestJson<T = { ok: boolean }>(url: string, init?: RequestInit)
 }
 
 async function optimizeReceipt(source: File): Promise<File> {
-  const bitmap = await createImageBitmap(source);
+  const image = await loadReceiptImage(source);
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   if (!context) throw new Error("이미지를 최적화할 수 없습니다.");
   let maxSide = 1600;
   let quality = 0.8;
   let blob: Blob | null = null;
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  for (let attempt = 0; attempt < 7; attempt += 1) {
+    const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image.source, 0, 0, canvas.width, canvas.height);
     blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (result) => result ? resolve(result) : reject(new Error("이미지 변환에 실패했습니다.")),
@@ -1529,9 +1545,52 @@ async function optimizeReceipt(source: File): Promise<File> {
     maxSide = Math.round(maxSide * 0.82);
     quality = Math.max(0.58, quality - 0.07);
   }
-  bitmap.close();
-  if (!blob) throw new Error("이미지 변환에 실패했습니다.");
+  image.close();
+  if (!blob || blob.size > 1_000_000) {
+    throw new Error("영수증 이미지를 1MB 이하로 줄일 수 없습니다. 다른 사진을 선택해 주세요.");
+  }
   return new File([blob], `receipt-${Date.now()}.jpg`, { type: "image/jpeg" });
+}
+
+async function loadReceiptImage(source: File): Promise<{
+  source: CanvasImageSource;
+  width: number;
+  height: number;
+  close: () => void;
+}> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(source, { imageOrientation: "from-image" });
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        close: () => bitmap.close(),
+      };
+    } catch {
+      // Some mobile browsers decode camera images only through an HTMLImageElement.
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(source);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.decoding = "async";
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("이 기기에서 영수증 이미지를 읽을 수 없습니다."));
+      element.src = objectUrl;
+    });
+    return {
+      source: image,
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      close: () => URL.revokeObjectURL(objectUrl),
+    };
+  } catch (error) {
+    URL.revokeObjectURL(objectUrl);
+    throw error;
+  }
 }
 
 function sum(values: number[]): number {
@@ -1540,6 +1599,17 @@ function sum(values: number[]): number {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "처리 중 오류가 발생했습니다.";
+}
+
+function currentKoreanDate(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function formatTime(seconds: number): string {

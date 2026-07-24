@@ -47,16 +47,14 @@ export async function POST(request: Request) {
       },
     });
 
-    const movementResult = await db
-      .prepare(
+    const [movementResult] = await db.batch([
+      db
+        .prepare(
         `INSERT INTO inventory_movements
           (item_id, movement_type, quantity, movement_date, note, cost_amount, receipt_key, created_by)
          VALUES (?, 'in', ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(milk.id, quantity, movementDate, note, amount, receiptKey, user.id)
-      .run();
-    const movementId = Number(movementResult.meta.last_row_id);
-    await db.batch([
+        .bind(milk.id, quantity, movementDate, note, amount, receiptKey, user.id),
       db
         .prepare("UPDATE inventory_items SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         .bind(quantity, milk.id),
@@ -64,10 +62,11 @@ export async function POST(request: Request) {
         .prepare(
           `INSERT INTO finance_transactions
             (kind, category, amount, transaction_date, description, inventory_movement_id, created_by)
-           VALUES ('expense', '우유', ?, ?, ?, ?, ?)`,
+           VALUES ('expense', '우유', ?, ?, ?, last_insert_rowid(), ?)`,
         )
-        .bind(amount, movementDate, note || `${quantity}팩 구매`, movementId, user.id),
+        .bind(amount, movementDate, note || `${quantity}팩 구매`, user.id),
     ]);
+    const movementId = Number(movementResult.meta.last_row_id);
     await audit(user.id, "milk_purchase", "inventory_movement", String(movementId), `${quantity}팩 · ${amount}원`);
     return Response.json({ id: movementId }, { status: 201 });
   } catch (error) {

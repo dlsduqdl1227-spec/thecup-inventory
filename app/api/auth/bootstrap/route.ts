@@ -30,10 +30,14 @@ export async function POST(request: Request) {
     const result = await db
       .prepare(
         `INSERT INTO staff (name, phone_hash, phone_last4, role)
-         VALUES (?, ?, ?, 'admin')`,
+         SELECT ?, ?, ?, 'admin'
+         WHERE NOT EXISTS (SELECT 1 FROM staff)`,
       )
       .bind(name, await phoneHash(phone), phone.slice(-4))
       .run();
+    if (Number(result.meta.changes ?? 0) !== 1) {
+      return Response.json({ error: "초기 관리자 등록이 이미 완료되었습니다." }, { status: 409 });
+    }
     const staffId = Number(result.meta.last_row_id);
     const session = await createSession(staffId);
     await audit(staffId, "bootstrap_admin", "staff", String(staffId), "최초 관리자 등록");

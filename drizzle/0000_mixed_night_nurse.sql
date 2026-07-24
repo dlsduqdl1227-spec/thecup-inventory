@@ -119,3 +119,10 @@ CREATE TABLE `staff` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `staff_phone_hash_unique` ON `staff` (`phone_hash`);
+--> statement-breakpoint
+CREATE TRIGGER `inventory_nonnegative_update`
+BEFORE UPDATE OF `quantity` ON `inventory_items`
+WHEN NEW.`quantity` < 0
+BEGIN
+  SELECT RAISE(ABORT, 'inventory_quantity_negative');
+END;

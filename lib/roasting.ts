@@ -91,6 +91,7 @@ export function calculateRorMetrics(
 }
 
 function averageRor(points: RoastPointInput[], start: number, end: number): number {
+  if (points.length < 2 || end <= start) return 0;
   const startTemp = interpolateTemperature(points, start);
   const endTemp = interpolateTemperature(points, end);
   const minutes = (end - start) / 60;

@@ -41,12 +41,15 @@ export async function GET(request: Request) {
       return {
         ...profile,
         points: profilePoints,
-        ror: calculateRorMetrics(
-          profilePoints,
-          Number(profile.yellowingSeconds),
-          Number(profile.firstCrackSeconds),
-          Number(profile.totalSeconds),
-        ),
+        ror:
+          profilePoints.length >= 2
+            ? calculateRorMetrics(
+                profilePoints,
+                Number(profile.yellowingSeconds),
+                Number(profile.firstCrackSeconds),
+                Number(profile.totalSeconds),
+              )
+            : { drying: 0, maillard: 0, development: 0 },
       };
     });
     return Response.json({ profiles: result });
@@ -63,7 +66,7 @@ export async function POST(request: Request) {
     const payload = (await request.json()) as Record<string, unknown>;
     const profile = parseRoastProfile(payload);
     const db = getD1();
-    const result = await db
+    const insertProfile = db
       .prepare(
         `INSERT INTO roasting_profiles
           (bean_name, origin, process, batch_weight, charge_temp, yellowing_seconds,
@@ -86,18 +89,19 @@ export async function POST(request: Request) {
         profile.gasNotes,
         profile.notes,
         user.id,
-      )
-      .run();
-    const id = Number(result.meta.last_row_id);
-    await db.batch(
-      profile.points.map((point) =>
+      );
+    const results = await db.batch([
+      insertProfile,
+      ...profile.points.map((point) =>
         db
           .prepare(
-            "INSERT INTO roasting_points (profile_id, seconds, bean_temp, gas_pressure) VALUES (?, ?, ?, ?)",
+            `INSERT INTO roasting_points (profile_id, seconds, bean_temp, gas_pressure)
+             SELECT seq, ?, ?, ? FROM sqlite_sequence WHERE name = 'roasting_profiles'`,
           )
-          .bind(id, point.seconds, point.beanTemp, point.gasPressure),
+          .bind(point.seconds, point.beanTemp, point.gasPressure),
       ),
-    );
+    ]);
+    const id = Number(results[0].meta.last_row_id);
     await audit(user.id, "create_roast_profile", "roasting_profile", String(id), profile.beanName);
     return Response.json({ id }, { status: 201 });
   } catch (error) {
@@ -115,6 +119,13 @@ export async function PATCH(request: Request) {
     if (!Number.isInteger(id) || id <= 0) throw new Error("수정할 로스팅 프로파일을 선택해 주세요.");
     const profile = parseRoastProfile(payload);
     const db = getD1();
+    const existing = await db
+      .prepare("SELECT id FROM roasting_profiles WHERE id = ?")
+      .bind(id)
+      .first<{ id: number }>();
+    if (!existing) {
+      return Response.json({ error: "수정할 로스팅 프로파일을 찾을 수 없습니다." }, { status: 404 });
+    }
     await db.batch([
       db
         .prepare(

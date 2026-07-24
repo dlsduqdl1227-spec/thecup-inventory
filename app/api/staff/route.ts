@@ -73,7 +73,24 @@ export async function PATCH(request: Request) {
       throw new Error("현재 로그인한 관리자 본인의 권한은 낮추거나 비활성화할 수 없습니다.");
     }
 
-    await getD1()
+    const db = getD1();
+    const target = await db
+      .prepare("SELECT role, active FROM staff WHERE id = ?")
+      .bind(id)
+      .first<{ role: StaffRole; active: number }>();
+    if (!target) {
+      return Response.json({ error: "변경할 직원을 찾을 수 없습니다." }, { status: 404 });
+    }
+    if (target.role === "admin" && Boolean(target.active) && (!active || role !== "admin")) {
+      const administrators = await db
+        .prepare("SELECT COUNT(*) AS count FROM staff WHERE role = 'admin' AND active = 1")
+        .first<{ count: number }>();
+      if (Number(administrators?.count ?? 0) <= 1) {
+        throw new Error("마지막 활성 관리자의 권한은 낮추거나 비활성화할 수 없습니다.");
+      }
+    }
+
+    await db
       .prepare("UPDATE staff SET role = ?, active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
       .bind(role, active, id)
       .run();
