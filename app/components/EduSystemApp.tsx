@@ -49,6 +49,7 @@ type Movement = {
   className: string;
   costAmount: number;
   hasReceipt: number;
+  receiptArchived: number;
   itemName: string;
   unit: string;
   createdByName: string;
@@ -654,10 +655,18 @@ function RecordView({
       if (!(source instanceof File) || !source.size) throw new Error("영수증 사진을 선택해 주세요.");
       const optimized = await optimizeReceipt(source);
       form.set("receipt", optimized, optimized.name);
-      await requestJson("/api/inventory/milk-purchase", { method: "POST", body: form });
+      const result = await requestJson<{ id: number; archivedReceipts: number }>(
+        "/api/inventory/milk-purchase",
+        { method: "POST", body: form },
+      );
       event.currentTarget.reset();
       await onUpdated();
-      notify({ kind: "ok", message: "우유 입고·비용·영수증이 함께 반영됐습니다." });
+      notify({
+        kind: "ok",
+        message: result.archivedReceipts
+          ? `우유 구매를 반영하고 오래된 영수증 ${result.archivedReceipts}건을 자동 정리했습니다.`
+          : "우유 입고·비용·영수증이 함께 반영됐습니다.",
+      });
     } catch (error) {
       notify({ kind: "error", message: errorMessage(error) });
     } finally {
@@ -1549,7 +1558,11 @@ function MovementTable({ movements }: { movements: Movement[] }) {
               <td>{movement.className || movement.note || "—"}</td>
               <td>{movement.costAmount ? won.format(movement.costAmount) : "—"}</td>
               <td>{movement.createdByName}</td>
-              <td>{movement.hasReceipt ? <a className="receipt-link" href={`/api/receipts/${movement.id}`} target="_blank" rel="noreferrer">영수증</a> : null}</td>
+              <td>{movement.hasReceipt
+                ? <a className="receipt-link" href={`/api/receipts/${movement.id}`} target="_blank" rel="noreferrer">영수증</a>
+                : movement.receiptArchived
+                  ? <span className="receipt-archived">보관 만료</span>
+                  : null}</td>
             </tr>
           )) : <tr><td colSpan={8} className="empty-cell">아직 기록이 없습니다.</td></tr>}
         </tbody>

@@ -80,7 +80,7 @@ test("migration covers identity, finance, inventory, receipts and roasting", asy
 });
 
 test("guards critical identity, date and persistence edge cases", async () => {
-  const [http, database, auth, bootstrap, staff, finance, inventory, milkPurchase, roasting, permissionsMigration] = await Promise.all([
+  const [http, database, auth, bootstrap, staff, finance, inventory, milkPurchase, receiptStorage, roasting, permissionsMigration] = await Promise.all([
     readFile(new URL("lib/http.ts", root), "utf8"),
     readFile(new URL("lib/db.ts", root), "utf8"),
     readFile(new URL("lib/auth.ts", root), "utf8"),
@@ -89,6 +89,7 @@ test("guards critical identity, date and persistence edge cases", async () => {
     readFile(new URL("app/api/finance/route.ts", root), "utf8"),
     readFile(new URL("app/api/inventory/route.ts", root), "utf8"),
     readFile(new URL("app/api/inventory/milk-purchase/route.ts", root), "utf8"),
+    readFile(new URL("lib/receipt-storage.ts", root), "utf8"),
     readFile(new URL("app/api/roasting/route.ts", root), "utf8"),
     readFile(new URL("drizzle/0001_melted_scalphunter.sql", root), "utf8"),
   ]);
@@ -103,6 +104,8 @@ test("guards critical identity, date and persistence edge cases", async () => {
   assert.match(finance, /requirePermission\(request, "finance"\)/);
   assert.match(inventory, /requirePermission\(request, "inventory"\)/);
   assert.match(milkPurchase, /last_insert_rowid\(\)/);
+  assert.match(milkPurchase, /makeRoomForReceipt/);
+  assert.match(receiptStorage, /receipt_deleted_at = CURRENT_TIMESTAMP/);
   assert.match(roasting, /requirePermission\(request, "roasting"\)/);
   assert.match(roasting, /sqlite_sequence WHERE name = 'roasting_profiles'/);
   assert.match(permissionsMigration, /ADD `can_finance`/);

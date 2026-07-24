@@ -13,9 +13,19 @@ export async function GET(
     const movementId = Number(id);
     if (!Number.isInteger(movementId) || movementId <= 0) throw new Error("영수증 번호가 올바르지 않습니다.");
     const movement = await getD1()
-      .prepare("SELECT receipt_key AS receiptKey, created_by AS createdBy FROM inventory_movements WHERE id = ?")
+      .prepare(
+        `SELECT receipt_key AS receiptKey, receipt_deleted_at AS receiptDeletedAt,
+                created_by AS createdBy
+         FROM inventory_movements WHERE id = ?`,
+      )
       .bind(movementId)
-      .first<{ receiptKey: string | null; createdBy: number }>();
+      .first<{ receiptKey: string | null; receiptDeletedAt: string | null; createdBy: number }>();
+    if (movement?.receiptDeletedAt) {
+      return Response.json(
+        { error: "저장공간 보호 정책에 따라 영수증 이미지의 보관이 만료되었습니다." },
+        { status: 410 },
+      );
+    }
     if (!movement?.receiptKey) return Response.json({ error: "영수증을 찾을 수 없습니다." }, { status: 404 });
     if (
       movement.createdBy !== user.id &&

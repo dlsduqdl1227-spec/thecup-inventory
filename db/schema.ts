@@ -75,6 +75,7 @@ export const inventoryMovements = sqliteTable("inventory_movements", {
   className: text("class_name").notNull().default(""),
   costAmount: integer("cost_amount").notNull().default(0),
   receiptKey: text("receipt_key"),
+  receiptDeletedAt: text("receipt_deleted_at"),
   createdBy: integer("created_by").notNull().references(() => staff.id),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

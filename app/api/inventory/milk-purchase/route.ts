@@ -1,5 +1,6 @@
 import { requireUser } from "../../../../lib/auth";
 import { audit, ensureDatabase, getD1, getReceiptsBucket } from "../../../../lib/db";
+import { makeRoomForReceipt } from "../../../../lib/receipt-storage";
 import {
   assertSameOrigin,
   integerAmount,
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
     const [year, month] = movementDate.split("-");
     receiptKey = `receipts/${year}/${month}/${crypto.randomUUID()}.${extension}`;
     const bucket = getReceiptsBucket();
+    const cleanup = await makeRoomForReceipt(bucket, db, receipt.size);
     await bucket.put(receiptKey, await receipt.arrayBuffer(), {
       httpMetadata: { contentType: receipt.type },
       customMetadata: {
@@ -67,8 +69,20 @@ export async function POST(request: Request) {
         .bind(amount, movementDate, note || `${quantity}팩 구매`, user.id),
     ]);
     const movementId = Number(movementResult.meta.last_row_id);
-    await audit(user.id, "milk_purchase", "inventory_movement", String(movementId), `${quantity}팩 · ${amount}원`);
-    return Response.json({ id: movementId }, { status: 201 });
+    const cleanupDetail = cleanup.deletedCount
+      ? ` · 오래된 영수증 ${cleanup.deletedCount}건 자동 정리`
+      : "";
+    await audit(
+      user.id,
+      "milk_purchase",
+      "inventory_movement",
+      String(movementId),
+      `${quantity}팩 · ${amount}원${cleanupDetail}`,
+    );
+    return Response.json(
+      { id: movementId, archivedReceipts: cleanup.deletedCount },
+      { status: 201 },
+    );
   } catch (error) {
     if (receiptKey) {
       try {

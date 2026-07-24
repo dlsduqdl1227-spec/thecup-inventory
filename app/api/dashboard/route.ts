@@ -44,6 +44,7 @@ export async function GET(request: Request) {
         ? `SELECT m.id, m.movement_type AS movementType, m.quantity,
                   m.movement_date AS movementDate, m.note, m.class_name AS className,
                   m.cost_amount AS costAmount, m.receipt_key IS NOT NULL AS hasReceipt,
+                  m.receipt_deleted_at IS NOT NULL AS receiptArchived,
                   i.name AS itemName, i.unit, s.name AS createdByName
            FROM inventory_movements m
            JOIN inventory_items i ON i.id = m.item_id
@@ -53,6 +54,7 @@ export async function GET(request: Request) {
         : `SELECT m.id, m.movement_type AS movementType, m.quantity,
                   m.movement_date AS movementDate, m.note, m.class_name AS className,
                   m.cost_amount AS costAmount, m.receipt_key IS NOT NULL AS hasReceipt,
+                  m.receipt_deleted_at IS NOT NULL AS receiptArchived,
                   i.name AS itemName, i.unit, s.name AS createdByName
            FROM inventory_movements m
            JOIN inventory_items i ON i.id = m.item_id

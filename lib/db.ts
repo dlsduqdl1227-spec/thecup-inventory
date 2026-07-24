@@ -122,6 +122,7 @@ const schemaStatements = [
     class_name TEXT NOT NULL DEFAULT '',
     cost_amount INTEGER NOT NULL DEFAULT 0,
     receipt_key TEXT,
+    receipt_deleted_at TEXT,
     created_by INTEGER NOT NULL REFERENCES staff(id),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
@@ -206,6 +207,7 @@ async function initializeDatabase(): Promise<void> {
   const db = getD1();
   await db.batch(schemaStatements.map((statement) => db.prepare(statement)));
   await ensureStaffPermissionColumns(db);
+  await ensureInventoryMovementColumns(db);
 
   const financeSeedStatements = monthlySeeds.map((row) =>
     db
@@ -271,6 +273,19 @@ async function ensureStaffPermissionColumns(db: D1Database): Promise<void> {
          SET can_finance = 1, can_inventory = 1, can_roasting = 1
          WHERE role IN ('admin', 'employee')`,
       )
+      .run();
+  }
+}
+
+async function ensureInventoryMovementColumns(db: D1Database): Promise<void> {
+  const columns = await db
+    .prepare("PRAGMA table_info(inventory_movements)")
+    .all<{ name: string }>();
+  const names = new Set(columns.results.map((column) => column.name));
+
+  if (!names.has("receipt_deleted_at")) {
+    await db
+      .prepare("ALTER TABLE inventory_movements ADD COLUMN receipt_deleted_at TEXT")
       .run();
   }
 }

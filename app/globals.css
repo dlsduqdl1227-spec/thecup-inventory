@@ -1026,6 +1026,13 @@ td.expense {
   font-weight: 800;
 }
 
+.receipt-archived {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .inventory-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

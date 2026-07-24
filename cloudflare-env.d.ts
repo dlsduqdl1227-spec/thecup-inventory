@@ -41,6 +41,24 @@ interface R2ObjectBody {
   writeHttpMetadata(headers: Headers): void;
 }
 
+interface R2Object {
+  key: string;
+  size: number;
+  uploaded: Date;
+}
+
+interface R2Objects {
+  objects: R2Object[];
+  truncated: boolean;
+  cursor?: string;
+}
+
+interface R2ListOptions {
+  prefix?: string;
+  cursor?: string;
+  limit?: number;
+}
+
 interface R2Bucket {
   put(
     key: string,
@@ -48,5 +66,6 @@ interface R2Bucket {
     options?: R2PutOptions,
   ): Promise<unknown>;
   get(key: string): Promise<R2ObjectBody | null>;
-  delete(key: string): Promise<void>;
+  list(options?: R2ListOptions): Promise<R2Objects>;
+  delete(keys: string | string[]): Promise<void>;
 }
