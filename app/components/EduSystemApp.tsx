@@ -156,18 +156,18 @@ const roleLabel: Record<Role, string> = {
 
 const categoryLabel: Record<InventoryItem["category"], string> = {
   green: "생두",
-  roasted: "로스팅(원두)",
-  gusto: "구스토 원두",
+  roasted: "원두 · 자체 로스팅",
+  gusto: "원두 · 구스토",
   milk: "우유",
   other: "기타",
 };
 
 const movementLabel: Record<string, string> = {
   in: "입고",
-  out: "사용",
+  out: "출고/사용",
   adjust: "실사 조정",
-  roast_in: "로스팅(원두) 입고",
-  roast_out: "생두 투입",
+  roast_in: "원두 입고 · 로스팅",
+  roast_out: "생두 출고 · 로스팅",
 };
 
 type PermissionField = "canFinance" | "canInventory" | "canRoasting";
@@ -182,7 +182,7 @@ const navItems: Array<{
   { key: "dashboard", label: "매출 내역", short: "매출", permission: "canFinance" },
   { key: "record", label: "수업 사용 기록", short: "수업 기록" },
   { key: "inventory", label: "재고 관리", short: "재고", permission: "canInventory" },
-  { key: "finance", label: "수입 · 지출 등록", short: "장부", permission: "canFinance" },
+  { key: "finance", label: "매출 및 지출 등록", short: "매출·지출", permission: "canFinance" },
   { key: "roasting", label: "로스팅 프로파일", short: "로스팅", permission: "canRoasting" },
   { key: "staff", label: "직원 · 권한", short: "직원", adminOnly: true },
 ];
@@ -192,8 +192,8 @@ const permissionOptions: Array<{
   label: string;
   description: string;
 }> = [
-  { field: "canFinance", label: "매출", description: "대시보드와 수입·지출" },
-  { field: "canInventory", label: "재고", description: "전체 재고와 로스팅 배치" },
+  { field: "canFinance", label: "매출", description: "매출 내역과 매출·지출 등록" },
+  { field: "canInventory", label: "재고", description: "생두·원두 재고와 입출고" },
   { field: "canRoasting", label: "로스팅", description: "프로파일 열람" },
 ];
 
@@ -922,36 +922,63 @@ function InventoryView({
   onUpdated: () => Promise<void>;
   notify: (toast: { kind: "ok" | "error"; message: string }) => void;
 }) {
+  const greenItems = data.inventory.filter((item) => item.category === "green");
+  const roastedItems = data.inventory.filter((item) => item.category === "roasted");
+  const beanItems = data.inventory.filter((item) => item.category === "roasted" || item.category === "gusto");
   const [busy, setBusy] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [itemBusy, setItemBusy] = useState(false);
-  const [inventoryTab, setInventoryTab] = useState<"overview" | "movement" | "roasting" | "new" | "history">("overview");
-  const [categoryFilter, setCategoryFilter] = useState<"all" | "green" | "beans" | "milk" | "other">("all");
+  const [inventoryTab, setInventoryTab] = useState<"overview" | "movement" | "history">("overview");
+  const [entryMode, setEntryMode] = useState<"existing" | "new">("existing");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "green" | "beans" | "support">("all");
   const [inventorySort, setInventorySort] = useState<InventorySort>("expiry");
   const [movementItemId, setMovementItemId] = useState(data.inventory[0]?.id ?? 0);
-  const greenItems = data.inventory.filter((item) => item.category === "green");
-  const roastedItems = data.inventory.filter((item) => item.category === "roasted");
+  const [movementType, setMovementType] = useState<"in" | "out" | "adjust">("in");
+  const [roastedOutputItemId, setRoastedOutputItemId] = useState(roastedItems[0]?.id ?? 0);
   const movementItem = data.inventory.find((item) => item.id === movementItemId) ?? data.inventory[0];
+  const roastedOutputItem = roastedItems.find((item) => item.id === roastedOutputItemId) ?? roastedItems[0];
+  const isGreenRoast = movementItem?.category === "green" && movementType === "out";
   const visibleItems = data.inventory
     .filter((item) => {
       if (categoryFilter === "all") return true;
       if (categoryFilter === "beans") return item.category === "roasted" || item.category === "gusto";
-      return item.category === categoryFilter;
+      if (categoryFilter === "support") return item.category === "milk" || item.category === "other";
+      return item.category === "green";
     })
     .sort((left, right) => compareInventoryItems(left, right, inventorySort));
+  const inventorySections = [
+    {
+      key: "green",
+      eyebrow: "로스팅 전",
+      title: "생두 재고",
+      description: "로스팅 전 보관 중인 생두입니다. 출고는 로스팅 사용으로 기록됩니다.",
+      items: visibleItems.filter((item) => item.category === "green"),
+    },
+    {
+      key: "beans",
+      eyebrow: "수업 사용",
+      title: "원두 재고",
+      description: "수업에 바로 사용하는 자체 로스팅 원두와 구스토 원두입니다.",
+      items: visibleItems.filter((item) => item.category === "roasted" || item.category === "gusto"),
+    },
+    {
+      key: "support",
+      eyebrow: "부자재",
+      title: "우유 · 기타 재고",
+      description: "수업에 사용하는 우유와 소모품입니다.",
+      items: visibleItems.filter((item) => item.category === "milk" || item.category === "other"),
+    },
+  ].filter((section) => section.items.length > 0);
   const inventoryTabs = [
     { key: "overview", label: "재고 현황" },
     { key: "movement", label: "입출고" },
-    { key: "roasting", label: "로스팅" },
-    { key: "new", label: "새 품목" },
     { key: "history", label: "기록" },
   ] as const;
   const categoryFilters = [
     { key: "all", label: "전체" },
     { key: "green", label: "생두" },
     { key: "beans", label: "원두" },
-    { key: "milk", label: "우유" },
-    { key: "other", label: "기타" },
+    { key: "support", label: "우유 · 기타" },
   ] as const;
 
   async function submitJson(event: FormEvent<HTMLFormElement>, endpoint: string, success: string) {
@@ -968,6 +995,48 @@ function InventoryView({
       formElement.reset();
       await onUpdated();
       notify({ kind: "ok", message: success });
+    } catch (error) {
+      notify({ kind: "error", message: errorMessage(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitMovement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setBusy(true);
+    try {
+      const payload = isGreenRoast
+        ? {
+            greenItemId: movementItemId,
+            roastedItemId: roastedOutputItemId,
+            greenKg: form.get("quantity"),
+            outputGrams: form.get("outputQuantity"),
+            movementDate: form.get("movementDate"),
+            note: form.get("note"),
+          }
+        : {
+            ...Object.fromEntries(form.entries()),
+            action: "movement",
+            itemId: movementItemId,
+            movementType,
+          };
+      await requestJson(isGreenRoast ? "/api/inventory/roast" : "/api/inventory", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      formElement.reset();
+      setMovementType("in");
+      await onUpdated();
+      notify({
+        kind: "ok",
+        message: isGreenRoast
+          ? "생두 출고와 완성 원두 입고를 함께 반영했습니다."
+          : "재고 변동을 반영했습니다.",
+      });
     } catch (error) {
       notify({ kind: "error", message: errorMessage(error) });
     } finally {
@@ -1017,7 +1086,7 @@ function InventoryView({
       <PageHeader
         eyebrow="재고 현황"
         title="재고 관리"
-        description="필요한 작업만 탭으로 열어 현재 재고, 입출고, 로스팅과 기록을 확인합니다."
+        description="생두와 원두를 구분해 확인하고, 모든 입고와 출고를 한 화면에서 기록합니다."
       />
 
       <div className="inventory-tabs" role="tablist" aria-label="재고 작업 선택">
@@ -1038,9 +1107,9 @@ function InventoryView({
       {inventoryTab === "overview" && (
         <div role="tabpanel">
           <div className="inventory-summary">
-            <div><span>전체 품목</span><strong>{data.inventory.length}<small>개</small></strong></div>
+            <div><span>생두 품목</span><strong>{greenItems.length}<small>개</small></strong></div>
+            <div><span>원두 품목</span><strong>{beanItems.length}<small>개</small></strong></div>
             <div className={data.inventory.some((item) => item.lowStock) ? "attention" : ""}><span>확인 필요</span><strong>{data.inventory.filter((item) => item.lowStock).length}<small>개</small></strong></div>
-            <div><span>기존 기록</span><strong>{number.format(data.legacyInventoryCount)}<small>건</small></strong></div>
           </div>
           <div className="inventory-overview-controls">
             <div className="inventory-filter" role="group" aria-label="재고 분류 필터">
@@ -1066,33 +1135,47 @@ function InventoryView({
               </select>
             </label>
           </div>
-          <div className="inventory-grid">
-            {visibleItems.map((item) => {
-              const amount = formatInventoryAmount(item.quantity, item.unit);
-              const minimum = formatInventoryAmount(item.reorderLevel, item.unit);
-              return (
-                <article className={item.lowStock ? "inventory-card low" : "inventory-card"} key={item.id}>
-                  <div className="inventory-card-top">
-                    <span className="category-tag">{categoryLabel[item.category]}</span>
-                    <div className="inventory-card-controls">
-                      <span className={item.lowStock ? "stock-status low" : "stock-status"}>{item.lowStock ? "확인 필요" : "정상"}</span>
-                      {data.user.role === "admin" && <button type="button" onClick={() => setEditingItem(item)}>정보 수정</button>}
-                    </div>
+          <div className="inventory-sections">
+            {inventorySections.map((section) => (
+              <section className={`inventory-section inventory-section-${section.key}`} key={section.key} aria-labelledby={`inventory-section-${section.key}`}>
+                <div className="inventory-section-heading">
+                  <div>
+                    <span>{section.eyebrow}</span>
+                    <h3 id={`inventory-section-${section.key}`}>{section.title}</h3>
+                    <p>{section.description}</p>
                   </div>
-                  <h3>{item.name}</h3>
-                  {(item.lot || item.process || item.expiryDate) && (
-                    <div className="inventory-meta">
-                      {item.lot && <span>LOT {item.lot}</span>}
-                      {item.process && <span>{item.process}</span>}
-                      {formatDateOnly(item.expiryDate) && <span>소비기한 {formatDateOnly(item.expiryDate)}</span>}
-                    </div>
-                  )}
-                  <strong>{amount.value}<small>{amount.unit}</small></strong>
-                  <div className="stock-meter"><span style={{ width: `${Math.min(100, item.reorderLevel ? (item.quantity / (item.reorderLevel * 2)) * 100 : 100)}%` }} /></div>
-                  <p>최소 재고 {minimum.value}{minimum.unit}</p>
-                </article>
-              );
-            })}
+                  <strong>{section.items.length}<small>개 품목</small></strong>
+                </div>
+                <div className="inventory-grid">
+                  {section.items.map((item) => {
+                    const amount = formatInventoryAmount(item.quantity, item.unit);
+                    const minimum = formatInventoryAmount(item.reorderLevel, item.unit);
+                    return (
+                      <article className={item.lowStock ? "inventory-card low" : "inventory-card"} key={item.id}>
+                        <div className="inventory-card-top">
+                          <span className={`category-tag category-${item.category}`}>{categoryLabel[item.category]}</span>
+                          <div className="inventory-card-controls">
+                            <span className={item.lowStock ? "stock-status low" : "stock-status"}>{item.lowStock ? "확인 필요" : "정상"}</span>
+                            {data.user.role === "admin" && <button type="button" onClick={() => setEditingItem(item)}>정보 수정</button>}
+                          </div>
+                        </div>
+                        <h3>{item.name}</h3>
+                        {(item.lot || item.process || item.expiryDate) && (
+                          <div className="inventory-meta">
+                            {item.lot && <span>LOT {item.lot}</span>}
+                            {item.process && <span>{item.process}</span>}
+                            {formatDateOnly(item.expiryDate) && <span>소비기한 {formatDateOnly(item.expiryDate)}</span>}
+                          </div>
+                        )}
+                        <strong>{amount.value}<small>{amount.unit}</small></strong>
+                        <div className="stock-meter"><span style={{ width: `${Math.min(100, item.reorderLevel ? (item.quantity / (item.reorderLevel * 2)) * 100 : 100)}%` }} /></div>
+                        <p>최소 재고 {minimum.value}{minimum.unit}</p>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
           {data.legacyInventoryCount > 0 && <p className="inventory-source-note">기존 더컵인벤토리의 입고·로스팅 기록과 현재 잔량을 그대로 연결했습니다.</p>}
         </div>
@@ -1100,75 +1183,91 @@ function InventoryView({
 
       {inventoryTab === "movement" && (
         <article className="panel compact-form-panel inventory-workspace-panel" role="tabpanel">
-          <div className="form-title"><span className="step-number">01</span><div><h3>입출고 · 실사</h3><p>기존 품목의 입고, 사용 또는 현재 수량을 반영합니다.</p></div></div>
-          <form onSubmit={(event) => submitJson(event, "/api/inventory", "재고 변동이 반영됐습니다.")}>
-            <input type="hidden" name="action" value="movement" />
-            <Field label="품목">
-              <select name="itemId" required value={movementItemId} onChange={(event) => setMovementItemId(Number(event.target.value))}>{data.inventory.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</select>
-            </Field>
-            <div className="two-columns">
-              <Field label="작업">
-                <select name="movementType"><option value="in">입고</option><option value="out">사용/출고</option><option value="adjust">실사 수량으로 조정</option></select>
-              </Field>
-              <Field label={`수량 (${movementItem?.unit ?? "단위"})`}>
-                <input name="quantity" type="number" min="0.01" step="0.01" required />
-              </Field>
-            </div>
-            <Field label="날짜"><input name="movementDate" type="date" defaultValue={today} required /></Field>
-            <Field label="메모"><input name="note" placeholder="입고처, 사용 사유" /></Field>
-            <button className="secondary-button" disabled={busy}>재고 반영</button>
-          </form>
-        </article>
-      )}
+          <div className="inventory-entry-switch segmented" role="group" aria-label="입출고 대상 선택">
+            <label className={entryMode === "existing" ? "active" : ""}>
+              <input type="radio" checked={entryMode === "existing"} onChange={() => setEntryMode("existing")} />기존 품목
+            </label>
+            <label className={entryMode === "new" ? "active" : ""}>
+              <input type="radio" checked={entryMode === "new"} onChange={() => setEntryMode("new")} />새 품목 입고
+            </label>
+          </div>
 
-      {inventoryTab === "roasting" && (
-        <article className="panel compact-form-panel inventory-workspace-panel" role="tabpanel">
-          <div className="form-title"><span className="step-number">02</span><div><h3>로스팅 배치 등록</h3><p>생두 차감 · 로스팅(원두) 입고</p></div></div>
-          <form onSubmit={(event) => submitJson(event, "/api/inventory/roast", "로스팅 배치 재고가 반영됐습니다.")}>
-            <Field label="투입한 생두">
-              <select name="greenItemId" required>{greenItems.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</select>
-            </Field>
-            <Field label="로스팅(원두) 입고 품목">
-              <select name="roastedItemId" required>{roastedItems.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</select>
-            </Field>
-            <div className="two-columns">
-              <Field label="생두 투입량 (kg)"><input name="greenKg" type="number" min="0.01" step="0.01" required /></Field>
-              <Field label="로스팅(원두) 중량 (g)"><input name="outputGrams" type="number" min="1" step="1" required /></Field>
-            </div>
-            <Field label="날짜"><input name="movementDate" type="date" defaultValue={today} required /></Field>
-            <Field label="메모"><input name="note" placeholder="배치 또는 프로파일명" /></Field>
-            <button className="secondary-button" disabled={busy}>배치 재고 반영</button>
-          </form>
-        </article>
-      )}
-
-      {inventoryTab === "new" && (
-        <article className="panel compact-form-panel inventory-workspace-panel" role="tabpanel">
-          <div className="form-title"><span className="step-number">03</span><div><h3>새 품목 직접 입고</h3><p>목록에 없는 원두나 부자재를 바로 등록합니다.</p></div></div>
-          <form onSubmit={(event) => submitJson(event, "/api/inventory", "새 품목과 입고 수량이 함께 반영됐습니다.")}>
-            <input type="hidden" name="action" value="create_item_with_stock" />
-            <Field label="품목명"><input name="name" required placeholder="에티오피아 구지 워시드" /></Field>
-            <div className="two-columns">
-              <Field label="LOT (선택)"><input name="lot" placeholder="26.07.24" /></Field>
-              <Field label="가공 방식 (선택)"><input name="process" placeholder="워시드" /></Field>
-            </div>
-            <div className="two-columns">
-              <Field label="분류">
-                <select name="category"><option value="green">생두</option><option value="roasted">로스팅(원두)</option><option value="gusto">구스토 원두</option><option value="milk">우유</option><option value="other">기타</option></select>
-              </Field>
-              <Field label="단위"><input name="unit" required placeholder="kg / g / 팩" /></Field>
-            </div>
-            <div className="two-columns">
-              <Field label="입고 수량"><input name="initialQuantity" type="number" min="0.01" step="0.01" required /></Field>
-              <Field label="입고일"><input name="movementDate" type="date" defaultValue={today} required /></Field>
-            </div>
-            <div className="two-columns">
-              <Field label="최소 재고"><input name="reorderLevel" type="number" min="0" step="0.1" defaultValue="0" /></Field>
-              <Field label="소비기한 (선택)"><input name="expiryDate" type="date" /></Field>
-            </div>
-            <Field label="입고 메모 (선택)"><input name="note" placeholder="구매처, 입고 사유" maxLength={300} /></Field>
-            <button className="secondary-button" disabled={busy}>품목 등록 및 입고</button>
-          </form>
+          {entryMode === "existing" ? (
+            <>
+              <div className="form-title"><div><h3>기존 품목 입출고</h3><p>생두 출고를 선택하면 로스팅된 원두 입고까지 한 번에 기록됩니다.</p></div></div>
+              <form onSubmit={submitMovement}>
+                <Field label="품목">
+                  <select name="itemId" required value={movementItemId} onChange={(event) => setMovementItemId(Number(event.target.value))}>
+                    {greenItems.length > 0 && <optgroup label="생두">{greenItems.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</optgroup>}
+                    {beanItems.length > 0 && <optgroup label="원두">{beanItems.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</optgroup>}
+                    {data.inventory.some((item) => item.category === "milk" || item.category === "other") && (
+                      <optgroup label="우유 · 기타">{data.inventory.filter((item) => item.category === "milk" || item.category === "other").map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</optgroup>
+                    )}
+                  </select>
+                </Field>
+                <div className="two-columns">
+                  <Field label="작업">
+                    <select name="movementType" value={movementType} onChange={(event) => setMovementType(event.target.value as "in" | "out" | "adjust")}>
+                      <option value="in">입고</option>
+                      <option value="out">{movementItem?.category === "green" ? "로스팅 사용 (출고)" : "출고/사용"}</option>
+                      <option value="adjust">실사 수량으로 조정</option>
+                    </select>
+                  </Field>
+                  <Field label={`${movementType === "adjust" ? "실사 수량" : isGreenRoast ? "생두 투입량" : "수량"} (${movementItem?.unit ?? "단위"})`}>
+                    <input name="quantity" type="number" min={movementType === "adjust" ? "0" : "0.01"} step="0.01" required />
+                  </Field>
+                </div>
+                {isGreenRoast && (
+                  <div className="inline-roast-workflow">
+                    <div className="inline-roast-heading"><strong>완성된 원두도 함께 입고</strong><span>두 번 입력할 필요 없이 자동으로 연결됩니다.</span></div>
+                    <div className="two-columns">
+                      <Field label="완성 원두 품목">
+                        <select name="roastedItemId" required value={roastedOutputItem?.id ?? ""} onChange={(event) => setRoastedOutputItemId(Number(event.target.value))}>
+                          {roastedItems.length > 0
+                            ? roastedItems.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)
+                            : <option value="">새 품목 입고에서 원두를 먼저 등록하세요</option>}
+                        </select>
+                      </Field>
+                      <Field label={`완성 원두 수량 (${roastedOutputItem?.unit ?? "g"})`}>
+                        <input name="outputQuantity" type="number" min="0.01" step="0.01" required />
+                      </Field>
+                    </div>
+                  </div>
+                )}
+                <Field label="날짜"><input name="movementDate" type="date" defaultValue={today} required /></Field>
+                <Field label="메모"><input name="note" placeholder={isGreenRoast ? "배치 또는 프로파일명" : "입고처, 출고·사용 사유"} /></Field>
+                <button className="secondary-button" disabled={busy || (isGreenRoast && !roastedOutputItem)}>{busy ? "반영 중…" : isGreenRoast ? "로스팅 재고 함께 반영" : "재고 반영"}</button>
+              </form>
+            </>
+          ) : (
+            <>
+              <div className="form-title"><div><h3>새 품목 입고</h3><p>목록에 없는 생두, 원두 또는 부자재를 등록하면서 입고합니다.</p></div></div>
+              <form onSubmit={(event) => submitJson(event, "/api/inventory", "새 품목과 입고 수량을 함께 반영했습니다.")}>
+                <input type="hidden" name="action" value="create_item_with_stock" />
+                <Field label="품목명"><input name="name" required placeholder="에티오피아 구지 워시드" /></Field>
+                <div className="two-columns">
+                  <Field label="LOT (선택)"><input name="lot" placeholder="26.07.24" /></Field>
+                  <Field label="가공 방식 (선택)"><input name="process" placeholder="워시드" /></Field>
+                </div>
+                <div className="two-columns">
+                  <Field label="분류">
+                    <select name="category"><option value="green">생두</option><option value="roasted">원두 · 자체 로스팅</option><option value="gusto">원두 · 구스토</option><option value="milk">우유</option><option value="other">기타</option></select>
+                  </Field>
+                  <Field label="단위"><input name="unit" required placeholder="kg / g / 팩" /></Field>
+                </div>
+                <div className="two-columns">
+                  <Field label="입고 수량"><input name="initialQuantity" type="number" min="0.01" step="0.01" required /></Field>
+                  <Field label="입고일"><input name="movementDate" type="date" defaultValue={today} required /></Field>
+                </div>
+                <div className="two-columns">
+                  <Field label="최소 재고"><input name="reorderLevel" type="number" min="0" step="0.1" defaultValue="0" /></Field>
+                  <Field label="소비기한 (선택)"><input name="expiryDate" type="date" /></Field>
+                </div>
+                <Field label="입고 메모 (선택)"><input name="note" placeholder="구매처, 입고 사유" maxLength={300} /></Field>
+                <button className="secondary-button" disabled={busy}>{busy ? "등록 중…" : "품목 등록 및 입고"}</button>
+              </form>
+            </>
+          )}
         </article>
       )}
 
@@ -1272,7 +1371,7 @@ function FinanceView({
       });
       formElement.reset();
       await onUpdated();
-      notify({ kind: "ok", message: `${kind === "income" ? "수입" : "지출"} 내역이 월별 지표에 반영됐습니다.` });
+      notify({ kind: "ok", message: `${kind === "income" ? "매출" : "지출"} 내역이 월별 지표에 반영됐습니다.` });
     } catch (error) {
       notify({ kind: "error", message: errorMessage(error) });
     } finally {
@@ -1294,7 +1393,7 @@ function FinanceView({
       });
       setEditingTransaction(null);
       await onUpdated();
-      notify({ kind: "ok", message: "수입·지출 기록을 수정했습니다." });
+      notify({ kind: "ok", message: "매출·지출 기록을 수정했습니다." });
     } catch (error) {
       notify({ kind: "error", message: errorMessage(error) });
     } finally {
@@ -1315,7 +1414,7 @@ function FinanceView({
         body: JSON.stringify({ id: entry.id }),
       });
       await onUpdated();
-      notify({ kind: "ok", message: "수입·지출 기록을 삭제했습니다." });
+      notify({ kind: "ok", message: "매출·지출 기록을 삭제했습니다." });
     } catch (error) {
       notify({ kind: "error", message: errorMessage(error) });
     } finally {
@@ -1326,16 +1425,16 @@ function FinanceView({
   return (
     <section className="page-section">
       <PageHeader
-        eyebrow="수입 · 지출"
-        title="수입 · 지출 내역"
-        description="CSV 기준액 이후 새로 발생한 내역만 입력하세요. 우유 구매 비용은 자동으로 들어옵니다."
+        eyebrow="매출 · 지출"
+        title="매출 및 지출 등록"
+        description="CSV 매출 자료 이후 새로 발생한 매출과 지출만 입력하세요. 우유 구매 비용은 자동으로 들어옵니다."
       />
       <div className="finance-layout">
         <article className="panel finance-entry">
-          <div className="panel-heading"><div><span className="eyebrow">새 내역</span><h3>수입 · 지출 등록</h3></div></div>
+          <div className="panel-heading"><div><span className="eyebrow">새 내역</span><h3>매출 및 지출 등록</h3></div></div>
           <form onSubmit={submit}>
             <div className="segmented">
-              <label className={kind === "income" ? "active" : ""}><input type="radio" name="kind" value="income" checked={kind === "income"} onChange={() => setKind("income")} />수입</label>
+              <label className={kind === "income" ? "active" : ""}><input type="radio" name="kind" value="income" checked={kind === "income"} onChange={() => setKind("income")} />매출</label>
               <label className={kind === "expense" ? "active" : ""}><input type="radio" name="kind" value="expense" checked={kind === "expense"} onChange={() => setKind("expense")} />지출</label>
             </div>
             <div className="two-columns">
@@ -1360,7 +1459,7 @@ function FinanceView({
                 {data.transactions.length ? data.transactions.map((entry) => (
                   <tr key={entry.id}>
                     <td>{entry.transactionDate}</td>
-                    <td><span className={`kind-badge ${entry.kind}`}>{entry.kind === "income" ? "수입" : "지출"}</span></td>
+                    <td><span className={`kind-badge ${entry.kind}`}>{entry.kind === "income" ? "매출" : "지출"}</span></td>
                     <td>{entry.category}</td>
                     <td>{entry.description || "—"}</td>
                     <td className={entry.kind}>{entry.kind === "income" ? "+" : "−"} {won.format(entry.amount)}</td>
@@ -1389,7 +1488,7 @@ function FinanceView({
         }}>
           <article className="record-modal" role="dialog" aria-modal="true" aria-labelledby="finance-editor-title">
             <div className="record-modal-heading">
-              <div><span className="eyebrow">관리자 편집</span><h3 id="finance-editor-title">수입·지출 기록 수정</h3></div>
+              <div><span className="eyebrow">관리자 편집</span><h3 id="finance-editor-title">매출·지출 기록 수정</h3></div>
               <button type="button" aria-label="닫기" onClick={() => setEditingTransaction(null)}>×</button>
             </div>
             <form onSubmit={saveTransaction}>
@@ -1397,7 +1496,7 @@ function FinanceView({
                 <Field label="구분">
                   {editingTransaction.inventoryMovementId
                     ? <><input type="hidden" name="kind" value="expense" /><input value="지출 (우유 구매 연결)" disabled /></>
-                    : <select name="kind" defaultValue={editingTransaction.kind}><option value="income">수입</option><option value="expense">지출</option></select>}
+                    : <select name="kind" defaultValue={editingTransaction.kind}><option value="income">매출</option><option value="expense">지출</option></select>}
                 </Field>
                 <Field label="날짜"><input name="transactionDate" type="date" defaultValue={editingTransaction.transactionDate} required /></Field>
               </div>
@@ -2474,7 +2573,7 @@ function sum(values: number[]): number {
 function inventoryOptionLabel(item: InventoryItem): string {
   const amount = formatInventoryAmount(item.quantity, item.unit);
   const name = item.lot ? `${item.name} · LOT ${item.lot}` : item.name;
-  return `${name} · 현재 ${amount.value}${amount.unit}`;
+  return `[${categoryLabel[item.category]}] ${name} · 현재 ${amount.value}${amount.unit}`;
 }
 
 function formatDateOnly(value: string | null | undefined): string | null {
@@ -2570,7 +2669,7 @@ function auditLabel(action: string): string {
     delete_legacy_inventory_record: "이관 재고 삭제",
     class_consumption: "수업 사용",
     milk_purchase: "우유 구매",
-    roast_inventory: "로스팅 배치",
+    roast_inventory: "생두 출고 · 원두 입고",
     create_roast_profile: "프로파일 생성",
     update_roast_profile: "프로파일 수정",
     delete_roast_profile: "프로파일 삭제",

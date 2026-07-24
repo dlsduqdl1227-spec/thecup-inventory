@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const user = await requirePermission(request, "finance");
     const payload = (await request.json()) as Record<string, unknown>;
     const kind = String(payload.kind ?? "");
-    if (kind !== "income" && kind !== "expense") throw new Error("수입 또는 지출을 선택해 주세요.");
+    if (kind !== "income" && kind !== "expense") throw new Error("매출 또는 지출을 선택해 주세요.");
     const category = textValue(payload.category, "분류", 50);
     const amount = integerAmount(payload.amount);
     const transactionDate = isoDate(payload.transactionDate);
@@ -48,7 +48,7 @@ export async function PATCH(request: Request) {
     const id = Number(payload.id);
     if (!Number.isInteger(id) || id <= 0) throw new Error("장부 기록을 선택해 주세요.");
     const kind = String(payload.kind ?? "");
-    if (kind !== "income" && kind !== "expense") throw new Error("수입 또는 지출을 선택해 주세요.");
+    if (kind !== "income" && kind !== "expense") throw new Error("매출 또는 지출을 선택해 주세요.");
     const category = textValue(payload.category, "분류", 50);
     const amount = integerAmount(payload.amount);
     const transactionDate = isoDate(payload.transactionDate);

@@ -106,10 +106,13 @@ export async function POST(request: Request) {
         : positiveNumber(payload.quantity, "수량");
 
     const item = await db
-      .prepare("SELECT id, name, quantity, unit FROM inventory_items WHERE id = ? AND active = 1")
+      .prepare("SELECT id, name, category, quantity, unit FROM inventory_items WHERE id = ? AND active = 1")
       .bind(itemId)
-      .first<{ id: number; name: string; quantity: number; unit: string }>();
+      .first<{ id: number; name: string; category: string; quantity: number; unit: string }>();
     if (!item) throw new Error("재고 품목을 찾을 수 없습니다.");
+    if (item.category === "green" && movementType === "out") {
+      throw new Error("생두 출고는 완성된 원두 수량과 함께 로스팅 사용으로 기록해 주세요.");
+    }
 
     let delta = inputQuantity;
     if (movementType === "out") delta = -inputQuantity;

@@ -1259,21 +1259,70 @@ td.expense {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+}
+
+.inventory-sections {
+  display: grid;
+  gap: 18px;
   margin-bottom: 16px;
 }
 
-.inventory-tabs {
+.inventory-section {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.35);
+  padding: 18px;
+}
+
+.inventory-section-heading {
   display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  padding: 2px 2px 15px;
+}
+
+.inventory-section-heading span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+}
+
+.inventory-section-heading h3 {
+  margin: 5px 0 4px;
+  font-size: 21px;
+}
+
+.inventory-section-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.inventory-section-heading > strong {
+  flex: 0 0 auto;
+  font-size: 24px;
+}
+
+.inventory-section-heading > strong small {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.inventory-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
-  overflow-x: auto;
   margin: -8px 0 22px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 9px;
-  scrollbar-width: thin;
 }
 
 .inventory-tabs button {
-  flex: 0 0 auto;
   min-height: 42px;
   border: 1px solid var(--line);
   background: var(--white);
@@ -1448,6 +1497,18 @@ td.expense {
   background: #e8e8e8;
 }
 
+.category-tag.category-green {
+  background: var(--ink);
+  color: var(--white);
+}
+
+.category-tag.category-roasted,
+.category-tag.category-gusto {
+  border: 1px solid var(--ink);
+  background: var(--white);
+  color: var(--ink);
+}
+
 .inventory-card h3 {
   margin: 18px 0 10px;
   font-size: 13px;
@@ -1517,6 +1578,42 @@ td.expense {
 .inventory-workspace-panel {
   width: min(760px, 100%);
   margin: 0 auto;
+}
+
+.inventory-entry-switch {
+  margin-bottom: 24px;
+}
+
+.inventory-entry-switch label {
+  min-height: 46px;
+  display: grid;
+  place-items: center;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.inline-roast-workflow {
+  margin: 3px 0 15px;
+  border: 1px solid var(--ink);
+  background: #ededed;
+  padding: 17px;
+}
+
+.inline-roast-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.inline-roast-heading strong {
+  font-size: 14px;
+}
+
+.inline-roast-heading span {
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .legacy-inventory-note {
@@ -2974,6 +3071,33 @@ td,
     line-height: 1.4;
   }
 
+  .inventory-section {
+    padding: 14px;
+  }
+
+  .inventory-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+    padding-bottom: 13px;
+  }
+
+  .inventory-section-heading h3 {
+    font-size: 20px;
+  }
+
+  .inventory-section-heading p {
+    font-size: 12px;
+  }
+
+  .inventory-section-heading > strong {
+    font-size: 18px;
+  }
+
+  .inventory-card {
+    padding: 18px;
+  }
+
   .receipt-preview {
     grid-template-columns: 76px minmax(0, 1fr);
   }
@@ -3041,15 +3165,38 @@ td,
 
   .inventory-tabs {
     margin-top: -3px;
-    margin-right: -16px;
-    margin-left: -16px;
-    padding: 0 16px 10px;
+    margin-right: 0;
+    margin-left: 0;
+    padding: 0 0 10px;
   }
 
   .inventory-tabs button {
     min-height: 46px;
-    padding: 0 16px;
+    padding: 0 10px;
     font-size: 13px;
+  }
+
+  .inventory-entry-switch label {
+    min-height: 50px;
+    font-size: 13px;
+  }
+
+  .inline-roast-workflow {
+    padding: 15px;
+  }
+
+  .inline-roast-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .inline-roast-heading strong {
+    font-size: 15px;
+  }
+
+  .inline-roast-heading span {
+    font-size: 12px;
   }
 
   .inventory-summary {
@@ -3102,7 +3249,7 @@ td,
   }
 
   .inventory-filter button {
-    min-height: 40px;
+    min-height: 44px;
     font-size: 12px;
   }
 

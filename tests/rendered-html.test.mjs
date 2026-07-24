@@ -46,10 +46,16 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /`\$\{minutes\}분 \$\{remainingSeconds\}초`/);
   assert.doesNotMatch(app, /가스 압력\(%\)|투입 80%/);
   assert.match(app, /로스팅\(원두\)/);
-  assert.match(app, /새 품목 직접 입고/);
+  assert.match(app, /새 품목 입고/);
   assert.match(app, /create_item_with_stock/);
   assert.match(app, /재고 작업 선택/);
   assert.match(app, /재고 현황/);
+  assert.match(app, /생두 재고/);
+  assert.match(app, /원두 재고/);
+  assert.match(app, /생두 출고와 완성 원두 입고를 함께 반영/);
+  assert.match(app, /inline-roast-workflow/);
+  assert.doesNotMatch(app, /\{ key: "roasting", label: "로스팅" \}/);
+  assert.doesNotMatch(app, /\{ key: "new", label: "새 품목" \}/);
   assert.match(app, /소비기한 임박순/);
   assert.match(app, /확인 필요 우선/);
   assert.match(app, /수량 적은 순/);
@@ -75,7 +81,8 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /재고 기록 수정/);
   assert.match(app, /품목 정보 수정/);
   assert.match(app, /api\/inventory\/items\//);
-  assert.match(app, /수입·지출 기록 수정/);
+  assert.match(app, /매출 및 지출 등록/);
+  assert.match(app, /매출·지출 기록 수정/);
   assert.match(app, /api\/inventory\/legacy/);
   assert.doesNotMatch(app, /event\.currentTarget\.reset\(\)/);
   assert.match(styles, /--ink: #111111/);
@@ -83,6 +90,10 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(styles, /\.brand-logo-coffee img/);
   assert.match(styles, /Pretendard Variable/);
   assert.match(styles, /\.inventory-tabs/);
+  assert.match(styles, /\.inventory-sections/);
+  assert.match(styles, /\.inventory-section-heading/);
+  assert.match(styles, /\.inventory-entry-switch/);
+  assert.match(styles, /\.inline-roast-workflow/);
   assert.match(styles, /\.inventory-overview-controls/);
   assert.match(styles, /\.inventory-sort-control/);
   assert.match(styles, /\.inventory-card-controls/);
@@ -212,6 +223,7 @@ test("guards critical identity, date and persistence edge cases", async () => {
   assert.match(inventory, /create_item_with_stock/);
   assert.match(inventory, /initialQuantity/);
   assert.match(inventory, /DELETE FROM inventory_items/);
+  assert.match(inventory, /item\.category === "green" && movementType === "out"/);
   assert.match(milkPurchase, /INSERT INTO receipt_files/);
   assert.match(milkPurchase, /makeRoomForReceipt/);
   assert.match(receiptStorage, /receipt_deleted_at = CURRENT_TIMESTAMP/);
