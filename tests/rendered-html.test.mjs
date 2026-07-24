@@ -34,6 +34,11 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /brand\/monthly-coffee\.png/);
   assert.match(app, /수업 사용 기록/);
   assert.match(app, /로스팅 프로파일/);
+  assert.match(app, /복사해서 새로 만들기/);
+  assert.match(app, /프로파일 복사본 만들기/);
+  assert.match(app, /mode === "edit" \? "PATCH" : "POST"/);
+  assert.match(app, /새 프로파일로 저장/);
+  assert.match(app, /자동 계산 디벨롭/);
   assert.match(app, /터닝포인트/);
   assert.match(app, /한눈에 따라하기/);
   assert.match(app, /MilestoneEditor/);
@@ -114,6 +119,10 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(styles, /\.milestone-grid/);
   assert.match(styles, /\.roast-follow-guide/);
   assert.match(styles, /\.roast-step-card/);
+  assert.match(styles, /\.copy-profile-notice/);
+  assert.match(styles, /\.live-development/);
+  assert.match(styles, /body \{[\s\S]*?font-size: 16px/);
+  assert.match(styles, /\.point-row input \{[\s\S]*?font-size: 16px/);
   assert.match(styles, /\.point-cell-label/);
   assert.match(styles, /\.mobile-history-nav/);
   assert.match(styles, /\.staff-delete-button/);

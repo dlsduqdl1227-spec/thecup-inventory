@@ -32,7 +32,7 @@ body {
   background: var(--cream);
   color: var(--ink);
   font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", sans-serif;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.55;
   letter-spacing: -0.015em;
 }
@@ -111,7 +111,7 @@ a {
 .eyebrow,
 .section-index {
   color: var(--orange);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.18em;
 }
@@ -273,7 +273,7 @@ a {
 
 .field > span {
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -350,7 +350,7 @@ a {
   top: 50%;
   right: 11px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-style: normal;
   transform: translateY(-50%);
   pointer-events: none;
@@ -363,7 +363,7 @@ a {
   border: 0;
   border-radius: 3px;
   padding: 0 20px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
@@ -476,7 +476,7 @@ a {
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: transparent;
   color: rgba(255, 255, 255, 0.66);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -509,13 +509,13 @@ a {
   color: rgba(255, 255, 255, 0.56);
   padding: 0 12px;
   text-align: left;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .nav-item span {
   color: rgba(255, 255, 255, 0.26);
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .nav-item:hover {
@@ -564,12 +564,12 @@ a {
 }
 
 .sidebar-user strong {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .sidebar-user small {
   color: rgba(255, 255, 255, 0.43);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .sidebar-user button {
@@ -579,7 +579,7 @@ a {
   background: transparent;
   color: rgba(255, 255, 255, 0.45);
   padding: 6px 0;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .main-content {
@@ -614,7 +614,7 @@ a {
   max-width: 720px;
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -641,7 +641,7 @@ a {
   background: var(--ink);
   color: var(--white);
   padding: 0 16px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   text-decoration: none;
   white-space: nowrap;
@@ -670,7 +670,7 @@ a {
 
 .kpi-card > span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -684,7 +684,7 @@ a {
 
 .kpi-card small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .kpi-card.dark {
@@ -1841,6 +1841,8 @@ td.expense {
 
 .button-row {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -2139,6 +2141,60 @@ td.expense {
   display: flex;
   flex-direction: column;
   gap: 28px;
+}
+
+.copy-profile-notice {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.55fr) minmax(0, 1.45fr);
+  align-items: center;
+  gap: 18px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--white);
+  padding: 18px 20px;
+}
+
+.copy-profile-notice div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.copy-profile-notice span,
+.live-development span {
+  color: #bdbdbd;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.copy-profile-notice strong {
+  font-size: 18px;
+}
+
+.copy-profile-notice p {
+  margin: 0;
+  color: #e3e3e3;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.live-development {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 190px;
+  border-left: 3px solid var(--ink);
+  background: #eeeeee;
+  padding: 11px 14px;
+}
+
+.live-development span {
+  color: var(--muted);
+}
+
+.live-development strong {
+  font-size: 17px;
 }
 
 .roast-form-section {
@@ -2703,20 +2759,20 @@ td.expense {
 .permission-fieldset > p,
 .audit-list span,
 .audit-list p {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 th,
 .profile-notes p,
 .permission-choice small {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 td,
 .profile-card strong,
 .staff-identity strong,
 .permission-choice strong {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .movement-badge,
@@ -2727,7 +2783,55 @@ td,
 .profile-card span,
 .point-row.header span,
 .remove-point {
-  font-size: 10px;
+  font-size: 11px;
+}
+
+.page-section p,
+.page-section small,
+.panel-heading p,
+.section-heading > div > p,
+.roast-follow-heading p,
+.roast-step-copy p,
+.milestone-card > p,
+.empty-state p,
+.linked-record-note,
+.locked-field-note,
+.quantity-helper {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.page-section input,
+.page-section select,
+.page-section textarea {
+  font-size: 15px;
+}
+
+.profile-card span,
+.profile-card small,
+.metric span,
+.ror-grid span,
+.profile-notes span,
+.chart-point-list span,
+.point-kind small,
+.bar-unit,
+.point-cell-label {
+  font-size: 12px;
+}
+
+.roast-step-number,
+.roast-step-card dt,
+.point-kind strong,
+.curve-heading > div:first-child span {
+  font-size: 12px;
+}
+
+.roast-step-copy h4,
+.roast-step-card dd,
+.curve-heading strong,
+.chart-point-list strong,
+.chart-point-list em {
+  font-size: 14px;
 }
 
 @media (max-width: 1180px) {
@@ -3030,7 +3134,7 @@ td,
     flex: 1 1 0;
     min-width: 58px;
     min-height: 52px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
   }
 
@@ -3435,6 +3539,25 @@ td,
     flex-direction: column;
   }
 
+  .profile-hero .button-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .profile-hero .button-row > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .copy-profile-notice {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .live-development {
+    width: 100%;
+  }
+
   .point-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
@@ -3489,8 +3612,9 @@ td,
   }
 
   .point-row input {
-    padding: 9px 6px;
-    font-size: 12px;
+    min-height: 50px;
+    padding: 11px 9px;
+    font-size: 16px;
   }
 
   .chart-point-list span {
@@ -3514,7 +3638,15 @@ td,
   .audit-list p,
   .toast,
   .toast span {
-    font-size: 12px;
+    font-size: 13px;
+  }
+
+  .page-section p {
+    font-size: 14px;
+  }
+
+  .page-section small {
+    font-size: 13px;
   }
 
   .profile-notes p,

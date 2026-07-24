@@ -114,6 +114,12 @@ type RoastProfile = {
   };
 };
 
+type RoastEditorState =
+  | { mode: "create" }
+  | { mode: "edit"; profile: RoastProfile }
+  | { mode: "copy"; profile: RoastProfile }
+  | null;
+
 type DashboardData = {
   user: User;
   finance: FinanceMonth[];
@@ -1555,14 +1561,18 @@ function RoastingView({
 }) {
   const [profiles, setProfiles] = useState<RoastProfile[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [editing, setEditing] = useState<RoastProfile | "new" | null>(null);
+  const [editor, setEditor] = useState<RoastEditorState>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preferredId?: number) => {
     try {
       const result = await requestJson<{ profiles: RoastProfile[] }>("/api/roasting");
       setProfiles(result.profiles);
-      setSelectedId((current) => current ?? result.profiles[0]?.id ?? null);
+      setSelectedId((current) => {
+        if (preferredId && result.profiles.some((profile) => profile.id === preferredId)) return preferredId;
+        if (current && result.profiles.some((profile) => profile.id === current)) return current;
+        return result.profiles[0]?.id ?? null;
+      });
     } catch (error) {
       notify({ kind: "error", message: errorMessage(error) });
     } finally {
@@ -1590,16 +1600,23 @@ function RoastingView({
     }
   }
 
-  if (editing) {
+  if (editor) {
+    const sourceProfile = editor.mode === "create" ? null : editor.profile;
     return (
       <section className="page-section">
         <RoastProfileForm
-          initial={editing === "new" ? null : editing}
-          onCancel={() => setEditing(null)}
-          onSaved={async () => {
-            setEditing(null);
-            await load();
-            notify({ kind: "ok", message: "로스팅 프로파일을 저장했습니다." });
+          initial={sourceProfile}
+          mode={editor.mode}
+          onCancel={() => setEditor(null)}
+          onSaved={async (savedId) => {
+            setEditor(null);
+            await load(savedId);
+            notify({
+              kind: "ok",
+              message: editor.mode === "copy"
+                ? "복사한 프로파일을 새 프로파일로 저장했습니다."
+                : "로스팅 프로파일을 저장했습니다.",
+            });
           }}
           notify={notify}
         />
@@ -1613,7 +1630,7 @@ function RoastingView({
         eyebrow="로스팅 기록"
         title="로스팅 프로파일"
         description="온도, bar 기준 가스 압력, 1차 크랙과 배출 시점을 기록하고 구간별 평균 ROR을 확인합니다."
-        action={user.role === "admin" ? <button className="primary-button small" onClick={() => setEditing("new")}>새 프로파일</button> : undefined}
+        action={user.role === "admin" ? <button className="primary-button small" onClick={() => setEditor({ mode: "create" })}>새 프로파일</button> : undefined}
       />
 
       {loading ? <div className="panel empty-state">프로파일을 불러오는 중입니다.</div> : profiles.length ? (
@@ -1642,7 +1659,8 @@ function RoastingView({
                 </div>
                 {user.role === "admin" && (
                   <div className="button-row">
-                    <button className="ghost-button" onClick={() => setEditing(selected)}>수정</button>
+                    <button className="ghost-button" onClick={() => setEditor({ mode: "copy", profile: selected })}>복사해서 새로 만들기</button>
+                    <button className="ghost-button" onClick={() => setEditor({ mode: "edit", profile: selected })}>수정</button>
                     <button className="ghost-button danger" onClick={() => void deleteProfile(selected)}>삭제</button>
                   </div>
                 )}
@@ -1669,7 +1687,7 @@ function RoastingView({
         <div className="panel empty-state">
           <strong>아직 저장된 로스팅 프로파일이 없습니다.</strong>
           <p>첫 프로파일을 등록하면 온도 곡선과 구간별 ROR이 여기에 표시됩니다.</p>
-          {user.role === "admin" && <button className="primary-button small" onClick={() => setEditing("new")}>첫 프로파일 만들기</button>}
+          {user.role === "admin" && <button className="primary-button small" onClick={() => setEditor({ mode: "create" })}>첫 프로파일 만들기</button>}
         </div>
       )}
     </section>
@@ -1801,13 +1819,15 @@ function MilestoneEditor({
 
 function RoastProfileForm({
   initial,
+  mode,
   onCancel,
   onSaved,
   notify,
 }: {
   initial: RoastProfile | null;
+  mode: "create" | "edit" | "copy";
   onCancel: () => void;
-  onSaved: () => Promise<void>;
+  onSaved: (savedId?: number) => Promise<void>;
   notify: (toast: { kind: "ok" | "error"; message: string }) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -1835,6 +1855,10 @@ function RoastProfileForm({
     finishPoint,
     ...extraPoints.filter((point) => point.seconds > 0 && point.seconds < finishPoint.seconds && !milestoneSeconds.has(point.seconds)),
   ].sort((left, right) => left.seconds - right.seconds);
+  const developmentSeconds = Math.max(0, finishPoint.seconds - firstCrackPoint.seconds);
+  const developmentRatio = finishPoint.seconds > 0
+    ? Math.round((developmentSeconds / finishPoint.seconds) * 1000) / 10
+    : 0;
 
   function updateExtraPoint(index: number, field: keyof RoastPoint, value: number) {
     setExtraPoints((current) => current.map((point, pointIndex) => pointIndex === index ? { ...point, [field]: value } : point));
@@ -1859,7 +1883,7 @@ function RoastProfileForm({
       const values = Object.fromEntries(new FormData(event.currentTarget).entries());
       const body = {
         ...values,
-        id: initial?.id,
+        id: mode === "edit" ? initial?.id : undefined,
         chargeTemp,
         turningPointSeconds: turningPoint.seconds,
         firstCrackSeconds: firstCrackPoint.seconds,
@@ -1867,12 +1891,12 @@ function RoastProfileForm({
         dropTemp: finishPoint.beanTemp,
         points,
       };
-      await requestJson("/api/roasting", {
-        method: initial ? "PATCH" : "POST",
+      const result = await requestJson<{ id?: number; ok?: boolean }>("/api/roasting", {
+        method: mode === "edit" ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      await onSaved();
+      await onSaved(result.id ?? initial?.id);
     } catch (error) {
       notify({ kind: "error", message: errorMessage(error) });
     } finally {
@@ -1884,15 +1908,23 @@ function RoastProfileForm({
     <>
       <PageHeader
         eyebrow="프로파일 작성"
-        title={initial ? "로스팅 프로파일 수정" : "새 로스팅 프로파일"}
-        description="주요 시점만 한 번 입력하면 온도·가스 포인트와 그래프가 자동으로 완성됩니다."
+        title={mode === "copy" ? "프로파일 복사본 만들기" : mode === "edit" ? "로스팅 프로파일 수정" : "새 로스팅 프로파일"}
+        description={mode === "copy"
+          ? "기존 설정을 모두 복사했습니다. 원두명과 달라진 시점만 수정하면 새 프로파일로 저장됩니다."
+          : "주요 시점만 한 번 입력하면 온도·가스 포인트와 그래프가 자동으로 완성됩니다."}
         action={<button className="ghost-button" onClick={onCancel}>목록으로</button>}
       />
       <form className="panel roast-form" onSubmit={submit}>
+        {mode === "copy" && initial && (
+          <div className="copy-profile-notice">
+            <div><span>복사한 원본</span><strong>{initial.beanName}</strong></div>
+            <p>원본은 그대로 보관됩니다. 새 원두명과 달라진 디벨롭·온도·가스 값만 확인한 뒤 저장하세요.</p>
+          </div>
+        )}
         <div className="roast-form-section">
           <span className="section-index">01 / 원두와 투입 조건</span>
           <div className="three-columns">
-            <Field label="원두명"><input name="beanName" defaultValue={initial?.beanName} required /></Field>
+            <Field label="원두명"><input name="beanName" defaultValue={mode === "copy" && initial ? `${initial.beanName} 복사본` : initial?.beanName} autoFocus={mode === "copy"} required /></Field>
             <Field label="산지"><input name="origin" defaultValue={initial?.origin} placeholder="Ethiopia Guji" /></Field>
             <Field label="프로세스"><input name="process" defaultValue={initial?.process} placeholder="Washed" /></Field>
           </div>
@@ -1905,6 +1937,10 @@ function RoastProfileForm({
         <div className="roast-form-section">
           <div className="section-heading milestone-heading">
             <div><span className="section-index">02 / 주요 시점</span><p>시간·온도·가스를 이곳에 한 번만 입력하세요. 아래 포인트에 자동 반영됩니다.</p></div>
+            <div className="live-development">
+              <span>자동 계산 디벨롭</span>
+              <strong>{formatTime(developmentSeconds)} · {developmentRatio}%</strong>
+            </div>
           </div>
           <div className="milestone-grid">
             <MilestoneEditor
@@ -1985,7 +2021,7 @@ function RoastProfileForm({
         </div>
         <div className="form-actions">
           <button type="button" className="ghost-button" onClick={onCancel}>취소</button>
-          <button className="primary-button" disabled={busy}>{busy ? "계산·저장 중…" : "프로파일 저장"}</button>
+          <button className="primary-button" disabled={busy}>{busy ? "계산·저장 중…" : mode === "copy" ? "새 프로파일로 저장" : "프로파일 저장"}</button>
         </div>
       </form>
     </>
@@ -2008,7 +2044,7 @@ function RoastCurve({ profile }: { profile: RoastProfile }) {
       context.scale(dpr, dpr);
       const width = rect.width;
       const height = 320;
-      const pad = { left: 48, right: 54, top: 34, bottom: 40 };
+      const pad = { left: 54, right: 62, top: 36, bottom: 42 };
       const chartWidth = width - pad.left - pad.right;
       const chartHeight = height - pad.top - pad.bottom;
       const temperatures = profile.points.map((point) => point.beanTemp);
@@ -2026,7 +2062,7 @@ function RoastCurve({ profile }: { profile: RoastProfile }) {
       context.strokeStyle = "#d6d6d6";
       context.lineWidth = 1;
       context.fillStyle = "#6f6f6f";
-      context.font = "11px Pretendard, Arial, sans-serif";
+      context.font = "13px Pretendard, Arial, sans-serif";
       for (let index = 0; index <= 4; index += 1) {
         const gridY = pad.top + (chartHeight / 4) * index;
         context.beginPath();
