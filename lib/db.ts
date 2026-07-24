@@ -1,4 +1,8 @@
 import { env } from "cloudflare:workers";
+import {
+  summarizeLegacyInventory,
+  type LegacyInventoryEntry,
+} from "./legacy-inventory";
 
 export type StaffRole = "admin" | "employee" | "instructor";
 export type StaffPermission = "finance" | "inventory" | "roasting";
@@ -104,6 +108,10 @@ const schemaStatements = [
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     category TEXT NOT NULL CHECK(category IN ('green','roasted','gusto','milk','other')),
     name TEXT NOT NULL,
+    lot TEXT NOT NULL DEFAULT '',
+    process TEXT NOT NULL DEFAULT '',
+    expiry_date TEXT,
+    legacy_key TEXT,
     unit TEXT NOT NULL,
     quantity REAL NOT NULL DEFAULT 0,
     reorder_level REAL NOT NULL DEFAULT 0,
@@ -209,6 +217,7 @@ async function initializeDatabase(): Promise<void> {
   const db = getD1();
   await db.batch(schemaStatements.map((statement) => db.prepare(statement)));
   await ensureStaffPermissionColumns(db);
+  await ensureInventoryItemColumns(db);
   await ensureInventoryMovementColumns(db);
 
   const financeSeedStatements = monthlySeeds.map((row) =>
@@ -251,6 +260,7 @@ async function initializeDatabase(): Promise<void> {
        WHERE category = 'roasted' AND name = '더컵 로스팅 원두'`,
     )
     .run();
+  await ensureLegacyInventory(db);
 }
 
 async function ensureStaffPermissionColumns(db: D1Database): Promise<void> {
@@ -290,6 +300,96 @@ async function ensureInventoryMovementColumns(db: D1Database): Promise<void> {
       .prepare("ALTER TABLE inventory_movements ADD COLUMN receipt_deleted_at TEXT")
       .run();
   }
+}
+
+async function ensureInventoryItemColumns(db: D1Database): Promise<void> {
+  const columns = await db
+    .prepare("PRAGMA table_info(inventory_items)")
+    .all<{ name: string }>();
+  const names = new Set(columns.results.map((column) => column.name));
+  const missing = [
+    ["lot", "ALTER TABLE inventory_items ADD COLUMN lot TEXT NOT NULL DEFAULT ''"],
+    ["process", "ALTER TABLE inventory_items ADD COLUMN process TEXT NOT NULL DEFAULT ''"],
+    ["expiry_date", "ALTER TABLE inventory_items ADD COLUMN expiry_date TEXT"],
+    ["legacy_key", "ALTER TABLE inventory_items ADD COLUMN legacy_key TEXT"],
+  ].filter(([name]) => !names.has(name));
+
+  for (const [, statement] of missing) {
+    await db.prepare(statement).run();
+  }
+
+  await db
+    .prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS inventory_items_legacy_key_unique ON inventory_items(legacy_key)",
+    )
+    .run();
+}
+
+export async function readLegacyInventoryEntries(
+  db: D1Database,
+): Promise<LegacyInventoryEntry[]> {
+  const table = await db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'entries'",
+    )
+    .first<{ name: string }>();
+  if (!table) return [];
+
+  const rows = await db
+    .prepare(
+      `SELECT id, created_at, item, lot, type, amount_mkg,
+              expiry_date, process, category
+       FROM entries
+       ORDER BY created_at ASC, id ASC`,
+    )
+    .all<LegacyInventoryEntry>();
+  return rows.results;
+}
+
+async function ensureLegacyInventory(db: D1Database): Promise<void> {
+  const entries = await readLegacyInventoryEntries(db);
+  if (!entries.length) return;
+
+  const summaries = summarizeLegacyInventory(entries);
+  if (summaries.length) {
+    await db.batch(
+      summaries.map((item) =>
+        db
+          .prepare(
+            `INSERT OR IGNORE INTO inventory_items
+              (category, name, lot, process, expiry_date, legacy_key,
+               unit, quantity, reorder_level, active)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          )
+          .bind(
+            item.category,
+            item.name,
+            item.lot,
+            item.process,
+            item.expiryDate,
+            item.legacyKey,
+            item.unit,
+            item.quantity,
+            item.reorderLevel,
+          ),
+      ),
+    );
+  }
+
+  await db.batch([
+    db.prepare(
+      `UPDATE inventory_items
+       SET active = 0, updated_at = CURRENT_TIMESTAMP
+       WHERE name = '로스팅용 생두' AND quantity = 0
+         AND EXISTS (SELECT 1 FROM inventory_items WHERE legacy_key IS NOT NULL AND category = 'green')`,
+    ),
+    db.prepare(
+      `UPDATE inventory_items
+       SET active = 0, updated_at = CURRENT_TIMESTAMP
+       WHERE name = '구스토 원두' AND quantity = 0
+         AND EXISTS (SELECT 1 FROM inventory_items WHERE legacy_key IS NOT NULL AND category = 'gusto')`,
+    ),
+  ]);
 }
 
 export async function audit(

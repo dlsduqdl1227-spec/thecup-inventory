@@ -35,6 +35,9 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(app, /수업 사용 기록/);
   assert.match(app, /로스팅 프로파일/);
   assert.match(app, /더컵 볶은 원두/);
+  assert.match(app, /title="매출 내역"/);
+  assert.match(app, /\{quarter\}분기/);
+  assert.doesNotMatch(app, /숫자가 말해주는 오늘의 운영|Q\{quarter\}/);
   assert.match(app, /STAFF ACCESS/);
   assert.doesNotMatch(app, /OPERATIONS, REFINED|개월 매출 이관|단계 권한 분리/);
   assert.match(app, /Asia\/Seoul/);
@@ -42,6 +45,7 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.match(styles, /--ink: #111111/);
   assert.match(styles, /\.brand-lockup/);
   assert.match(styles, /\.brand-logo-coffee img/);
+  assert.match(styles, /Pretendard Variable/);
   assert.doesNotMatch(styles, /#17483b|#d9613e|#f3f0e7/i);
   assert.doesNotMatch(`${page}\n${layout}\n${app}`, /codex-preview|Your site is taking shape|SkeletonPreview/i);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
@@ -80,7 +84,7 @@ test("migration covers identity, finance, inventory, receipts and roasting", asy
 });
 
 test("guards critical identity, date and persistence edge cases", async () => {
-  const [http, database, auth, bootstrap, staff, finance, inventory, milkPurchase, receiptStorage, roasting, permissionsMigration] = await Promise.all([
+  const [http, database, auth, bootstrap, staff, finance, inventory, milkPurchase, receiptStorage, roasting, permissionsMigration, legacyMigration, dashboard] = await Promise.all([
     readFile(new URL("lib/http.ts", root), "utf8"),
     readFile(new URL("lib/db.ts", root), "utf8"),
     readFile(new URL("lib/auth.ts", root), "utf8"),
@@ -92,6 +96,8 @@ test("guards critical identity, date and persistence edge cases", async () => {
     readFile(new URL("lib/receipt-storage.ts", root), "utf8"),
     readFile(new URL("app/api/roasting/route.ts", root), "utf8"),
     readFile(new URL("drizzle/0001_melted_scalphunter.sql", root), "utf8"),
+    readFile(new URL("drizzle/0005_clean_red_skull.sql", root), "utf8"),
+    readFile(new URL("app/api/dashboard/route.ts", root), "utf8"),
   ]);
 
   assert.match(http, /getUTCDate\(\) !== day/);
@@ -112,4 +118,9 @@ test("guards critical identity, date and persistence edge cases", async () => {
   assert.match(roasting, /sqlite_sequence WHERE name = 'roasting_profiles'/);
   assert.match(permissionsMigration, /ADD `can_finance`/);
   assert.match(permissionsMigration, /WHERE `role` IN \('admin', 'employee'\)/);
+  assert.match(legacyMigration, /ADD `legacy_key`/);
+  assert.match(database, /readLegacyInventoryEntries/);
+  assert.match(database, /summarizeLegacyInventory/);
+  assert.match(dashboard, /legacyInventoryCount/);
+  assert.match(dashboard, /기존 재고 기록/);
 });

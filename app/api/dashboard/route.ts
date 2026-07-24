@@ -1,5 +1,10 @@
 import { requireUser } from "../../../lib/auth";
-import { ensureDatabase, getD1 } from "../../../lib/db";
+import {
+  ensureDatabase,
+  getD1,
+  readLegacyInventoryEntries,
+} from "../../../lib/db";
+import { normalizeLegacyCategory } from "../../../lib/legacy-inventory";
 import { jsonError } from "../../../lib/http";
 
 export async function GET(request: Request) {
@@ -31,7 +36,8 @@ export async function GET(request: Request) {
 
     const inventory = await db
       .prepare(
-        `SELECT id, category, name, unit, quantity, reorder_level AS reorderLevel,
+        `SELECT id, category, name, lot, process, expiry_date AS expiryDate,
+                unit, quantity, reorder_level AS reorderLevel,
                 CASE WHEN quantity <= reorder_level THEN 1 ELSE 0 END AS lowStock
          FROM inventory_items
          WHERE active = 1 ${user.canInventory ? "" : "AND category IN ('milk','roasted','gusto')"}
@@ -45,7 +51,8 @@ export async function GET(request: Request) {
                   m.movement_date AS movementDate, m.note, m.class_name AS className,
                   m.cost_amount AS costAmount, m.receipt_key IS NOT NULL AS hasReceipt,
                   m.receipt_deleted_at IS NOT NULL AS receiptArchived,
-                  i.name AS itemName, i.unit, s.name AS createdByName
+                  i.name AS itemName, i.unit, s.name AS createdByName,
+                  m.created_at AS createdAt
            FROM inventory_movements m
            JOIN inventory_items i ON i.id = m.item_id
            JOIN staff s ON s.id = m.created_by
@@ -55,7 +62,8 @@ export async function GET(request: Request) {
                   m.movement_date AS movementDate, m.note, m.class_name AS className,
                   m.cost_amount AS costAmount, m.receipt_key IS NOT NULL AS hasReceipt,
                   m.receipt_deleted_at IS NOT NULL AS receiptArchived,
-                  i.name AS itemName, i.unit, s.name AS createdByName
+                  i.name AS itemName, i.unit, s.name AS createdByName,
+                  m.created_at AS createdAt
            FROM inventory_movements m
            JOIN inventory_items i ON i.id = m.item_id
            JOIN staff s ON s.id = m.created_by
@@ -64,6 +72,41 @@ export async function GET(request: Request) {
       !user.canInventory
         ? await db.prepare(movementSql).bind(user.id).all()
         : await db.prepare(movementSql).all();
+
+    const legacyEntries = user.canInventory
+      ? await readLegacyInventoryEntries(db)
+      : [];
+    const legacyMovements = legacyEntries.map((entry) => {
+      const category = normalizeLegacyCategory(entry);
+      const movementType = entry.type === "입고"
+        ? "in"
+        : category === "green"
+          ? "roast_out"
+          : "out";
+      return {
+        id: `legacy:${entry.id}`,
+        movementType,
+        quantity: Number(entry.amount_mkg) / 1000,
+        movementDate: entry.created_at.slice(0, 10),
+        note: [
+          entry.lot ? `LOT ${entry.lot}` : "",
+          entry.process,
+          entry.expiry_date ? `유효 ${entry.expiry_date}` : "",
+        ].filter(Boolean).join(" · "),
+        className: "",
+        costAmount: 0,
+        hasReceipt: 0,
+        receiptArchived: 0,
+        itemName: entry.item,
+        unit: "kg",
+        createdByName: "기존 재고 기록",
+        createdAt: entry.created_at,
+      };
+    });
+    const combinedMovements = [
+      ...movements.results,
+      ...legacyMovements,
+    ].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 
     const transactions =
       user.canFinance
@@ -103,7 +146,8 @@ export async function GET(request: Request) {
       user,
       finance: finance.results,
       inventory: inventory.results,
-      movements: movements.results,
+      movements: combinedMovements,
+      legacyInventoryCount: legacyEntries.length,
       transactions: transactions.results,
       profiles: profiles.results,
     });

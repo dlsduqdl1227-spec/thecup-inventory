@@ -24,16 +24,20 @@ export async function POST(request: Request) {
     if (action === "create_item") {
       const name = textValue(payload.name, "품목명", 80);
       const category = String(payload.category ?? "");
+      const lot = optionalText(payload.lot, 40);
+      const process = optionalText(payload.process, 80);
+      const expiryDate = payload.expiryDate ? isoDate(payload.expiryDate) : null;
       const unit = textValue(payload.unit, "단위", 10);
       const reorderLevel = nonNegativeNumber(payload.reorderLevel, "최소 재고");
       if (!categories.includes(category)) throw new Error("재고 분류를 선택해 주세요.");
       const result = await db
         .prepare(
           `INSERT INTO inventory_items
-            (category, name, unit, quantity, reorder_level, created_by)
-           VALUES (?, ?, ?, 0, ?, ?)`,
+            (category, name, lot, process, expiry_date,
+             unit, quantity, reorder_level, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
         )
-        .bind(category, name, unit, reorderLevel, user.id)
+        .bind(category, name, lot, process, expiryDate, unit, reorderLevel, user.id)
         .run();
       const id = Number(result.meta.last_row_id);
       await audit(user.id, "create_item", "inventory_item", String(id), name);

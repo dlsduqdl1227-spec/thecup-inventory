@@ -34,6 +34,9 @@ type InventoryItem = {
   id: number;
   category: "green" | "roasted" | "gusto" | "milk" | "other";
   name: string;
+  lot: string;
+  process: string;
+  expiryDate: string | null;
   unit: string;
   quantity: number;
   reorderLevel: number;
@@ -41,7 +44,7 @@ type InventoryItem = {
 };
 
 type Movement = {
-  id: number;
+  id: number | string;
   movementType: string;
   quantity: number;
   movementDate: string;
@@ -53,6 +56,7 @@ type Movement = {
   itemName: string;
   unit: string;
   createdByName: string;
+  createdAt: string;
 };
 
 type FinanceTransaction = {
@@ -102,6 +106,7 @@ type DashboardData = {
   movements: Movement[];
   transactions: FinanceTransaction[];
   profiles: Array<Omit<RoastProfile, "points" | "ror">>;
+  legacyInventoryCount: number;
 };
 
 type StaffMember = {
@@ -164,10 +169,10 @@ const navItems: Array<{
   permission?: PermissionField;
   adminOnly?: boolean;
 }> = [
-  { key: "dashboard", label: "매출 대시보드", short: "대시보드", permission: "canFinance" },
+  { key: "dashboard", label: "매출 내역", short: "매출", permission: "canFinance" },
   { key: "record", label: "수업 사용 기록", short: "수업 기록" },
   { key: "inventory", label: "재고 관리", short: "재고", permission: "canInventory" },
-  { key: "finance", label: "매출 · 비용", short: "매출", permission: "canFinance" },
+  { key: "finance", label: "수입 · 지출 등록", short: "장부", permission: "canFinance" },
   { key: "roasting", label: "로스팅 프로파일", short: "로스팅", permission: "canRoasting" },
   { key: "staff", label: "직원 · 권한", short: "직원", adminOnly: true },
 ];
@@ -530,9 +535,9 @@ function DashboardView({ data }: { data: DashboardData }) {
   return (
     <section className="page-section">
       <PageHeader
-        eyebrow="MANAGEMENT OVERVIEW"
-        title="숫자가 말해주는 오늘의 운영"
-        description="CSV 이관 자료와 신규 입력 내역을 합산한 월별 경영 현황입니다."
+        eyebrow="매출 현황"
+        title="매출 내역"
+        description="2024년부터 현재까지의 월별 매출, 비용과 순익을 확인합니다."
         action={
           <select value={year} onChange={(event) => setYear(Number(event.target.value))} aria-label="분석 연도">
             {availableYears.map((value) => <option key={value} value={value}>{value}년</option>)}
@@ -556,7 +561,7 @@ function DashboardView({ data }: { data: DashboardData }) {
         <article className="panel revenue-panel">
           <div className="panel-heading">
             <div>
-              <span className="eyebrow">MONTHLY PERFORMANCE</span>
+              <span className="eyebrow">월별 현황</span>
               <h3>월별 매출과 순익</h3>
             </div>
             <div className="chart-legend"><span className="revenue-dot" />매출 <span className="profit-dot" />순익</div>
@@ -570,7 +575,7 @@ function DashboardView({ data }: { data: DashboardData }) {
         <article className="panel signal-panel">
           <div className="panel-heading">
             <div>
-              <span className="eyebrow">OPERATING SIGNALS</span>
+              <span className="eyebrow">운영 확인</span>
               <h3>지금 확인할 것</h3>
             </div>
           </div>
@@ -601,9 +606,9 @@ function DashboardView({ data }: { data: DashboardData }) {
           const average = activeQuarter.length ? sum(activeQuarter.map((row) => row.revenue)) / activeQuarter.length : 0;
           return (
             <article className="quarter-card" key={quarter}>
-              <span>Q{quarter}</span>
+              <span>{quarter}분기</span>
               <strong>{average ? won.format(average) : "집계 전"}</strong>
-              <small>월평균 매출 · {activeQuarter.length}/3개월</small>
+              <small>{(quarter - 1) * 3 + 1}–{quarter * 3}월 월평균 · {activeQuarter.length}/3개월</small>
             </article>
           );
         })}
@@ -776,7 +781,7 @@ function RecordView({
             <div className="two-columns">
               <Field label="사용 원두">
                 <select name="beanItemId" defaultValue={beanItems[0]?.id ?? ""}>
-                  {beanItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  {beanItems.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}
                 </select>
               </Field>
               <Field label="원두 사용 (g)">
@@ -840,15 +845,29 @@ function InventoryView({
     <section className="page-section">
       <PageHeader
         eyebrow="STOCK CONTROL"
-        title="재고 흐름을 한눈에"
-        description="볶기 전 생두, 더컵 볶은 원두, 구스토 원두와 우유의 입고·사용량을 관리합니다."
+        title="재고 관리"
+        description="생두 로트, 더컵 볶은 원두, 구스토 원두와 우유의 입고·사용 기록을 관리합니다."
       />
+
+      {data.legacyInventoryCount > 0 && (
+        <div className="legacy-inventory-note">
+          <div><span>기존 재고 기록</span><strong>{number.format(data.legacyInventoryCount)}건</strong></div>
+          <p>기존 더컵인벤토리의 입고·로스팅 기록과 현재 잔량을 그대로 연결했습니다.</p>
+        </div>
+      )}
 
       <div className="inventory-grid">
         {data.inventory.map((item) => (
           <article className={item.lowStock ? "inventory-card low" : "inventory-card"} key={item.id}>
             <span className="category-tag">{categoryLabel[item.category]}</span>
             <h3>{item.name}</h3>
+            {(item.lot || item.process || item.expiryDate) && (
+              <div className="inventory-meta">
+                {item.lot && <span>LOT {item.lot}</span>}
+                {item.process && <span>{item.process}</span>}
+                {item.expiryDate && <span>유효 {item.expiryDate}</span>}
+              </div>
+            )}
             <strong>{number.format(item.quantity)}<small>{item.unit}</small></strong>
             <div className="stock-meter"><span style={{ width: `${Math.min(100, item.reorderLevel ? (item.quantity / (item.reorderLevel * 2)) * 100 : 100)}%` }} /></div>
             <p>최소 재고 {number.format(item.reorderLevel)}{item.unit}</p>
@@ -862,7 +881,7 @@ function InventoryView({
           <form onSubmit={(event) => submitJson(event, "/api/inventory", "재고 변동이 반영됐습니다.")}>
             <input type="hidden" name="action" value="movement" />
             <Field label="품목">
-              <select name="itemId" required>{data.inventory.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+              <select name="itemId" required>{data.inventory.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</select>
             </Field>
             <div className="two-columns">
               <Field label="작업">
@@ -882,10 +901,10 @@ function InventoryView({
           <div className="form-title"><span className="step-number">02</span><div><h3>로스팅 배치 등록</h3><p>생두 차감 · 볶은 원두 입고</p></div></div>
           <form onSubmit={(event) => submitJson(event, "/api/inventory/roast", "로스팅 배치 재고가 반영됐습니다.")}>
             <Field label="투입한 생두">
-              <select name="greenItemId" required>{greenItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+              <select name="greenItemId" required>{greenItems.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</select>
             </Field>
             <Field label="볶은 원두 입고 품목">
-              <select name="roastedItemId" required>{roastedItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+              <select name="roastedItemId" required>{roastedItems.map((item) => <option key={item.id} value={item.id}>{inventoryOptionLabel(item)}</option>)}</select>
             </Field>
             <div className="two-columns">
               <Field label="생두 투입량 (kg)"><input name="greenKg" type="number" min="0.01" step="0.01" required /></Field>
@@ -903,12 +922,17 @@ function InventoryView({
             <input type="hidden" name="action" value="create_item" />
             <Field label="품목명"><input name="name" required placeholder="에티오피아 구지 워시드" /></Field>
             <div className="two-columns">
+              <Field label="LOT (선택)"><input name="lot" placeholder="26.07.24" /></Field>
+              <Field label="가공 방식 (선택)"><input name="process" placeholder="워시드" /></Field>
+            </div>
+            <div className="two-columns">
               <Field label="분류">
                 <select name="category"><option value="green">생두</option><option value="roasted">더컵 볶은 원두</option><option value="gusto">구스토 원두</option><option value="milk">우유</option><option value="other">기타</option></select>
               </Field>
               <Field label="단위"><input name="unit" required placeholder="kg / g / 팩" /></Field>
             </div>
             <Field label="최소 재고"><input name="reorderLevel" type="number" min="0" step="0.1" defaultValue="0" /></Field>
+            <Field label="유효일 (선택)"><input name="expiryDate" type="date" /></Field>
             <button className="secondary-button" disabled={busy}>품목 추가</button>
           </form>
         </article>
@@ -958,7 +982,7 @@ function FinanceView({
     <section className="page-section">
       <PageHeader
         eyebrow="REVENUE LEDGER"
-        title="매출과 비용, 같은 장부에서"
+        title="수입 · 지출 내역"
         description="CSV 기준액 이후 새로 발생한 내역만 입력하세요. 우유 구매 비용은 자동으로 들어옵니다."
       />
       <div className="finance-layout">
@@ -1700,6 +1724,10 @@ async function loadReceiptImage(source: File): Promise<{
 
 function sum(values: number[]): number {
   return values.reduce((total, value) => total + Number(value), 0);
+}
+
+function inventoryOptionLabel(item: InventoryItem): string {
+  return item.lot ? `${item.name} · LOT ${item.lot}` : item.name;
 }
 
 function errorMessage(error: unknown): string {
