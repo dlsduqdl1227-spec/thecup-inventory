@@ -42,6 +42,7 @@ test("ships the branded monochrome application instead of the starter preview", 
   assert.doesNotMatch(app, /OPERATIONS, REFINED|개월 매출 이관|단계 권한 분리/);
   assert.match(app, /Asia\/Seoul/);
   assert.match(app, /capture="environment"/);
+  assert.doesNotMatch(app, /event\.currentTarget\.reset\(\)/);
   assert.match(styles, /--ink: #111111/);
   assert.match(styles, /\.brand-lockup/);
   assert.match(styles, /\.brand-logo-coffee img/);

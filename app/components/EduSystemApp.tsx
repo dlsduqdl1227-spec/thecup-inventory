@@ -653,9 +653,10 @@ function RecordView({
 
   async function submitMilk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setBusy("milk");
     try {
-      const form = new FormData(event.currentTarget);
+      const form = new FormData(formElement);
       const source = form.get("receipt");
       if (!(source instanceof File) || !source.size) throw new Error("영수증 사진을 선택해 주세요.");
       const optimized = await optimizeReceipt(source);
@@ -664,7 +665,7 @@ function RecordView({
         "/api/inventory/milk-purchase",
         { method: "POST", body: form },
       );
-      event.currentTarget.reset();
+      formElement.reset();
       await onUpdated();
       notify({
         kind: "ok",
@@ -681,16 +682,17 @@ function RecordView({
 
   async function submitClassUse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setBusy("class");
     try {
-      const form = new FormData(event.currentTarget);
+      const form = new FormData(formElement);
       await requestJson("/api/inventory/class-use", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
-      event.currentTarget.reset();
-      const dateInput = event.currentTarget.elements.namedItem("movementDate") as HTMLInputElement | null;
+      formElement.reset();
+      const dateInput = formElement.elements.namedItem("movementDate") as HTMLInputElement | null;
       if (dateInput) dateInput.value = today;
       await onUpdated();
       notify({ kind: "ok", message: "수업 사용량이 재고에서 차감됐습니다." });
@@ -823,15 +825,16 @@ function InventoryView({
 
   async function submitJson(event: FormEvent<HTMLFormElement>, endpoint: string, success: string) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setBusy(true);
     try {
-      const form = new FormData(event.currentTarget);
+      const form = new FormData(formElement);
       await requestJson(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
-      event.currentTarget.reset();
+      formElement.reset();
       await onUpdated();
       notify({ kind: "ok", message: success });
     } catch (error) {
@@ -960,15 +963,16 @@ function FinanceView({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setBusy(true);
     try {
-      const form = new FormData(event.currentTarget);
+      const form = new FormData(formElement);
       await requestJson("/api/finance", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
-      event.currentTarget.reset();
+      formElement.reset();
       await onUpdated();
       notify({ kind: "ok", message: `${kind === "income" ? "수입" : "지출"} 내역이 월별 지표에 반영됐습니다.` });
     } catch (error) {
@@ -1433,14 +1437,15 @@ function StaffView({
 
   async function addStaff(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setBusy(true);
     try {
       await requestJson("/api/staff", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget).entries())),
+        body: JSON.stringify(Object.fromEntries(new FormData(formElement).entries())),
       });
-      event.currentTarget.reset();
+      formElement.reset();
       await load();
       notify({ kind: "ok", message: "직원이 등록되어 바로 로그인할 수 있습니다." });
     } catch (error) {
