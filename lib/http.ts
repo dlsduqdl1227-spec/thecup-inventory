@@ -11,7 +11,7 @@ export function jsonError(error: unknown): Response {
       { status: 409 },
     );
   }
-  if (/(D1_ERROR|SQLITE|constraint failed|database|R2Bucket)/i.test(message)) {
+  if (/(D1_ERROR|SQLITE|constraint failed|database)/i.test(message)) {
     console.error("Internal persistence error", error);
     return Response.json(
       { error: "저장 중 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." },

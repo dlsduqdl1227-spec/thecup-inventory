@@ -720,7 +720,7 @@ function RecordView({
         <article className="panel form-panel">
           <div className="form-title">
             <span className="step-number">01</span>
-            <div><h3>우유 구매 등록</h3><p>영수증은 긴 변 1,600px 이하로 자동 최적화됩니다.</p></div>
+            <div><h3>우유 구매 등록</h3><p>영수증은 약 350KB 이하로 자동 최적화됩니다.</p></div>
           </div>
           <form onSubmit={submitMilk}>
             <div className="two-columns">
@@ -1628,8 +1628,8 @@ async function optimizeReceipt(source: File): Promise<File> {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   if (!context) throw new Error("이미지를 최적화할 수 없습니다.");
-  let maxSide = 1600;
-  let quality = 0.8;
+  let maxSide = 1400;
+  let quality = 0.76;
   let blob: Blob | null = null;
   for (let attempt = 0; attempt < 7; attempt += 1) {
     const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
@@ -1646,13 +1646,13 @@ async function optimizeReceipt(source: File): Promise<File> {
         quality,
       );
     });
-    if (blob.size <= 850_000) break;
+    if (blob.size <= 350_000) break;
     maxSide = Math.round(maxSide * 0.82);
     quality = Math.max(0.58, quality - 0.07);
   }
   image.close();
-  if (!blob || blob.size > 1_000_000) {
-    throw new Error("영수증 이미지를 1MB 이하로 줄일 수 없습니다. 다른 사진을 선택해 주세요.");
+  if (!blob || blob.size > 400_000) {
+    throw new Error("영수증 이미지를 400KB 이하로 줄일 수 없습니다. 다른 사진을 선택해 주세요.");
   }
   return new File([blob], `receipt-${Date.now()}.jpg`, { type: "image/jpeg" });
 }

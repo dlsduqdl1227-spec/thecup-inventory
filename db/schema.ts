@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { customType, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+
+const sqliteBlob = customType<{ data: ArrayBuffer }>({
+  dataType() {
+    return "blob";
+  },
+});
 
 export const staff = sqliteTable("staff", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -63,20 +69,34 @@ export const inventoryItems = sqliteTable("inventory_items", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const inventoryMovements = sqliteTable("inventory_movements", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  itemId: integer("item_id").notNull().references(() => inventoryItems.id),
-  movementType: text("movement_type", {
-    enum: ["in", "out", "adjust", "roast_in", "roast_out"],
-  }).notNull(),
-  quantity: real("quantity").notNull(),
-  movementDate: text("movement_date").notNull(),
-  note: text("note").notNull().default(""),
-  className: text("class_name").notNull().default(""),
-  costAmount: integer("cost_amount").notNull().default(0),
-  receiptKey: text("receipt_key"),
-  receiptDeletedAt: text("receipt_deleted_at"),
-  createdBy: integer("created_by").notNull().references(() => staff.id),
+export const inventoryMovements = sqliteTable(
+  "inventory_movements",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    itemId: integer("item_id").notNull().references(() => inventoryItems.id),
+    movementType: text("movement_type", {
+      enum: ["in", "out", "adjust", "roast_in", "roast_out"],
+    }).notNull(),
+    quantity: real("quantity").notNull(),
+    movementDate: text("movement_date").notNull(),
+    note: text("note").notNull().default(""),
+    className: text("class_name").notNull().default(""),
+    costAmount: integer("cost_amount").notNull().default(0),
+    receiptKey: text("receipt_key"),
+    receiptDeletedAt: text("receipt_deleted_at"),
+    createdBy: integer("created_by").notNull().references(() => staff.id),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [uniqueIndex("movements_receipt_key_idx").on(table.receiptKey)],
+);
+
+export const receiptFiles = sqliteTable("receipt_files", {
+  movementId: integer("movement_id")
+    .primaryKey()
+    .references(() => inventoryMovements.id, { onDelete: "cascade" }),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  data: sqliteBlob("data").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

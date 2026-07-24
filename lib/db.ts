@@ -126,6 +126,13 @@ const schemaStatements = [
     created_by INTEGER NOT NULL REFERENCES staff(id),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS receipt_files (
+    movement_id INTEGER PRIMARY KEY REFERENCES inventory_movements(id) ON DELETE CASCADE,
+    content_type TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    data BLOB NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
   `CREATE TABLE IF NOT EXISTS roasting_profiles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bean_name TEXT NOT NULL,
@@ -168,6 +175,7 @@ const schemaStatements = [
   )`,
   "CREATE INDEX IF NOT EXISTS sessions_staff_idx ON sessions(staff_id)",
   "CREATE INDEX IF NOT EXISTS movements_item_date_idx ON inventory_movements(item_id, movement_date)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS movements_receipt_key_idx ON inventory_movements(receipt_key)",
   "CREATE INDEX IF NOT EXISTS finance_date_idx ON finance_transactions(transaction_date)",
   "CREATE INDEX IF NOT EXISTS audit_created_idx ON audit_logs(created_at)",
   "CREATE INDEX IF NOT EXISTS roasting_points_profile_idx ON roasting_points(profile_id, seconds)",
@@ -185,12 +193,6 @@ export function getD1(): D1Database {
   const database = (env as unknown as { DB?: D1Database }).DB;
   if (!database) throw new Error("데이터베이스 연결이 준비되지 않았습니다.");
   return database;
-}
-
-export function getReceiptsBucket(): R2Bucket {
-  const bucket = (env as unknown as { RECEIPTS?: R2Bucket }).RECEIPTS;
-  if (!bucket) throw new Error("영수증 저장소 연결이 준비되지 않았습니다.");
-  return bucket;
 }
 
 export async function ensureDatabase(): Promise<void> {

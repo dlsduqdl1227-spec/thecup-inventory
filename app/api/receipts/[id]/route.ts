@@ -1,5 +1,5 @@
 import { requireUser } from "../../../../lib/auth";
-import { ensureDatabase, getD1, getReceiptsBucket } from "../../../../lib/db";
+import { ensureDatabase, getD1 } from "../../../../lib/db";
 import { jsonError } from "../../../../lib/http";
 
 export async function GET(
@@ -11,8 +11,12 @@ export async function GET(
     const user = await requireUser(request);
     const { id } = await context.params;
     const movementId = Number(id);
-    if (!Number.isInteger(movementId) || movementId <= 0) throw new Error("영수증 번호가 올바르지 않습니다.");
-    const movement = await getD1()
+    if (!Number.isInteger(movementId) || movementId <= 0) {
+      throw new Error("영수증 번호가 올바르지 않습니다.");
+    }
+
+    const db = getD1();
+    const movement = await db
       .prepare(
         `SELECT receipt_key AS receiptKey, receipt_deleted_at AS receiptDeletedAt,
                 created_by AS createdBy
@@ -26,22 +30,31 @@ export async function GET(
         { status: 410 },
       );
     }
-    if (!movement?.receiptKey) return Response.json({ error: "영수증을 찾을 수 없습니다." }, { status: 404 });
-    if (
-      movement.createdBy !== user.id &&
-      !user.canInventory &&
-      !user.canFinance
-    ) {
+    if (!movement?.receiptKey) {
+      return Response.json({ error: "영수증을 찾을 수 없습니다." }, { status: 404 });
+    }
+    if (movement.createdBy !== user.id && !user.canInventory && !user.canFinance) {
       return Response.json({ error: "본인이 등록한 영수증만 볼 수 있습니다." }, { status: 403 });
     }
 
-    const object = await getReceiptsBucket().get(movement.receiptKey);
-    if (!object) return Response.json({ error: "영수증 파일을 찾을 수 없습니다." }, { status: 404 });
-    const headers = new Headers();
-    object.writeHttpMetadata(headers);
-    headers.set("content-disposition", `inline; filename="receipt-${movementId}"`);
-    headers.set("cache-control", "private, max-age=300");
-    return new Response(object.body, { headers });
+    const receipt = await db
+      .prepare(
+        `SELECT content_type AS contentType, data
+         FROM receipt_files WHERE movement_id = ?`,
+      )
+      .bind(movementId)
+      .first<{ contentType: string; data: ArrayBuffer }>();
+    if (!receipt) {
+      return Response.json({ error: "영수증 파일을 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const headers = new Headers({
+      "content-type": receipt.contentType,
+      "content-disposition": `inline; filename="receipt-${movementId}"`,
+      "cache-control": "private, max-age=300",
+      "x-content-type-options": "nosniff",
+    });
+    return new Response(receipt.data, { headers });
   } catch (error) {
     return jsonError(error);
   }

@@ -53,7 +53,7 @@ test("ships the branded monochrome application instead of the starter preview", 
 
   const bindings = JSON.parse(hosting);
   assert.equal(bindings.d1, "DB");
-  assert.equal(bindings.r2, "RECEIPTS");
+  assert.equal(bindings.r2, null);
 });
 
 test("migration covers identity, finance, inventory, receipts and roasting", async () => {
@@ -97,15 +97,17 @@ test("guards critical identity, date and persistence edge cases", async () => {
   assert.match(http, /getUTCDate\(\) !== day/);
   assert.match(http, /inventory_quantity_negative/);
   assert.match(database, /CREATE TRIGGER IF NOT EXISTS inventory_nonnegative_update/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS receipt_files/);
   assert.match(auth, /requirePermission/);
   assert.match(bootstrap, /WHERE NOT EXISTS \(SELECT 1 FROM staff\)/);
   assert.match(staff, /마지막 활성 관리자의 권한/);
   assert.match(staff, /can_finance END AS canFinance/);
   assert.match(finance, /requirePermission\(request, "finance"\)/);
   assert.match(inventory, /requirePermission\(request, "inventory"\)/);
-  assert.match(milkPurchase, /last_insert_rowid\(\)/);
+  assert.match(milkPurchase, /INSERT INTO receipt_files/);
   assert.match(milkPurchase, /makeRoomForReceipt/);
   assert.match(receiptStorage, /receipt_deleted_at = CURRENT_TIMESTAMP/);
+  assert.match(receiptStorage, /DELETE FROM receipt_files/);
   assert.match(roasting, /requirePermission\(request, "roasting"\)/);
   assert.match(roasting, /sqlite_sequence WHERE name = 'roasting_profiles'/);
   assert.match(permissionsMigration, /ADD `can_finance`/);

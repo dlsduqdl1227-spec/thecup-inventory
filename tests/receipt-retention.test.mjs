@@ -17,31 +17,27 @@ const retention = await import(
   `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`
 );
 
-test("keeps receipts when the projected storage stays at or below 8GB", () => {
+test("keeps receipts when D1 receipt storage stays at or below 250MB", () => {
   const plan = retention.planReceiptCleanup(
-    [{ key: "receipts/old.jpg", size: 7_900_000_000, uploaded: "2024-01-01" }],
-    100_000_000,
+    [{ movementId: 1, size: 240_000_000, createdAt: "2024-01-01" }],
+    10_000_000,
   );
 
-  assert.deepEqual(plan.keys, []);
-  assert.equal(plan.projectedBytes, 8_000_000_000);
+  assert.deepEqual(plan.movementIds, []);
+  assert.equal(plan.projectedBytes, 250_000_000);
 });
 
-test("archives the oldest receipts until storage falls below the 7GB target", () => {
-  const objects = Array.from({ length: 9 }, (_, index) => ({
-    key: `receipts/${String(index + 1).padStart(2, "0")}.jpg`,
-    size: 1_000_000_000,
-    uploaded: new Date(Date.UTC(2024, index, 1)),
+test("archives the oldest receipts until D1 receipt storage falls below 200MB", () => {
+  const receipts = Array.from({ length: 5 }, (_, index) => ({
+    movementId: index + 1,
+    size: 50_000_000,
+    createdAt: new Date(Date.UTC(2024, index, 1)).toISOString(),
   }));
-  const plan = retention.planReceiptCleanup(objects, 500_000_000);
+  const plan = retention.planReceiptCleanup(receipts, 10_000_000);
 
-  assert.deepEqual(plan.keys, [
-    "receipts/01.jpg",
-    "receipts/02.jpg",
-    "receipts/03.jpg",
-  ]);
-  assert.equal(plan.bytesReclaimed, 3_000_000_000);
-  assert.equal(plan.projectedBytes, 6_500_000_000);
+  assert.deepEqual(plan.movementIds, [1, 2]);
+  assert.equal(plan.bytesReclaimed, 100_000_000);
+  assert.equal(plan.projectedBytes, 160_000_000);
 });
 
 test("rejects invalid incoming file sizes", () => {
